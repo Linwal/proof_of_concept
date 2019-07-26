@@ -39,7 +39,7 @@ Office=Building(window_area=4.0,
                 t_set_cooling = 26.0,
                 max_cooling_energy_per_floor_area=0,
                 max_heating_energy_per_floor_area=np.inf,
-                heating_supply_system=supply_system.OilBoilerMed,
+                heating_supply_system=supply_system.HeatPumpAir,
                 cooling_supply_system=supply_system.HeatPumpAir,
                 heating_emission_system=emission_system.NewRadiators,
                 cooling_emission_system=emission_system.AirConditioning,)
@@ -63,6 +63,7 @@ max_occupancy=3.0
 t_m_prev=20
 
 energy_demand = []
+electricity_demand=[]
 
 for hour in range(8760):
 
@@ -97,8 +98,10 @@ for hour in range(8760):
 
 
     energy_demand.append(Office.energy_demand)
+    electricity_demand.append(Office.heating_sys_electricity)
 
 
-plt.plot(energy_demand)
+plt.plot(electricity_demand)
+plt.plot(energy_demand, color="red")
 plt.show()
 
