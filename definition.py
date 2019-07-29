@@ -9,9 +9,7 @@ import supply_system
 import emission_system
 from radiation import Location
 from radiation import Window
-
-
-
+from radiation import PhotovoltaicSurface
 
 
 Zurich = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw")
@@ -29,7 +27,7 @@ lighting_maintenance_factor=0.9
 u_walls = 0.15
 u_windows = 0.9
 ach_vent=1.5
-ach_infl=0.5
+ach_infl=0.8
 ventilation_efficiency=0.6
 thermal_capacitance_per_floor_area = 165000
 t_set_heating = 20.0
@@ -150,6 +148,11 @@ hourly_emission_factors = np.concatenate([
 SouthWindow = Window(azimuth_tilt=0, alititude_tilt = 90, glass_solar_transmittance=0.2,
                      glass_light_transmittance=0.5, area = 4)
 
+## Define PV to this building
+
+RoofPV = PhotovoltaicSurface(azimuth_tilt=0, alititude_tilt = 45, stc_efficiency=0.2,
+                     performance_ratio=0.9, area = 4)
+
 
 ## Define occupancy
 occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\schedules_el_OFFICE.csv")
@@ -159,6 +162,13 @@ occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimula
 gain_per_person = 100 # W per sqm
 appliance_gains= 14 #W per sqm
 max_occupancy=3.0
+
+## Define embodied emissions:
+coeq_gshp = 272.5 #kg/kW [KBOB 2016]
+coeq_borehole = 28.1 #kg/m[KBOB 2016]
+coeq_ashp = 363.75 #kg/m [KBOB 2016]
+coeq_underfloor_heating = 5.06 #kg/m2 [KBOB]
+coeq_pv = 2080 # kg/kWp
 
 #Starting temperature of the builidng:
 t_m_prev=20
@@ -170,9 +180,12 @@ office_list = [Office_1X, Office_2X, Office_32]
 
 
 electricity_demands_list = []
+pv_yields_list = []
+heating_demands_list = []
 for Office in office_list:
-    energy_demand = []
     electricity_demand = []
+    solar_yield = []
+    heating_demand = []
     for hour in range(8760):
 
         #Occupancy for the time step
@@ -193,6 +206,10 @@ for Office in office_list:
                                      normal_direct_illuminance = Zurich.weather_data['dirnorillum_lux'][hour],
                                      horizontal_diffuse_illuminance = Zurich.weather_data['difhorillum_lux'][hour])
 
+        RoofPV.calc_solar_yield(sun_altitude = Altitude, sun_azimuth=Azimuth,
+                               normal_direct_radiation=Zurich.weather_data['dirnorrad_Whm2'][hour],
+                               horizontal_diffuse_radiation=Zurich.weather_data['difhorrad_Whm2'][hour])
+
 
         Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,t_out=t_out,
                                      t_m_prev=t_m_prev)
@@ -205,25 +222,83 @@ for Office in office_list:
 
 
 
-        energy_demand.append(Office.energy_demand)
+        heating_demand.append(Office.energy_demand)
         electricity_demand.append(Office.heating_sys_electricity)
+        solar_yield.append(RoofPV.solar_yield)
 
+    heating_demands_list.append(heating_demand)
     electricity_demands_list.append(electricity_demand)
-    operational_emissions = np.multiply(electricity_demands_list,hourly_emission_factors)
+    pv_yields_list.append(solar_yield)
+    net_electricity_demands_list = np.subtract(electricity_demands_list, pv_yields_list)
+    operational_emissions = np.multiply(net_electricity_demands_list,hourly_emission_factors)/1000
+    operational_emissions[operational_emissions<0] = 0.
+
+
+## embodied emissions:
+
+
+
+#PV
+kwp_pv = RoofPV.area * RoofPV.efficiency # = kWp
+pv_embodied = kwp_pv*coeq_pv
+
+# direct electrical
+embodied_direct = pv_embodied
+
+# ASHP
+ashp_power = np.percentile(heating_demands_list[1],0.9)/1000 #kW
+ashp_embodied = coeq_ashp*ashp_power # kgCO2eq
+underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
+
+embodied_ashp = pv_embodied + ashp_embodied + underfloor_heating_embodied
+
+# GSHP
+borehole_depth = 120 #m
+gshp_power = np.percentile(heating_demands_list[2],0.9)/1000 #kW
+gshp_embodied = coeq_gshp * gshp_power # kgCO2eq
+# underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
+borehole_embodied = coeq_borehole * borehole_depth
+
+embodied_gshp = pv_embodied + gshp_embodied + underfloor_heating_embodied + borehole_embodied
+
+
+embodied_emissions = np.array([embodied_direct, embodied_ashp, embodied_gshp])
+
+# Annual for 25years lifetime
+lifetime=25 #y
+annual_embodied_emissions = embodied_emissions/25.
+
+#### Total emissions
+
+annual_operational_emissions = operational_emissions.sum(axis=1)
+print(annual_operational_emissions)
+
+p1 = plt.bar([0,1,2], annual_embodied_emissions)
+p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions, color="blue")
+plt.title("Annual emissions with U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + " PV=" + str(kwp_pv) +"kW" )
+plt.ylabel("kgCO2eq/annum")
+plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
+plt.legend((p1[0],p2[0]),('embodied', 'operational'))
+plt.ylim(0,350)
+plt.show()
+
+
+
+
+
+
+
+
+
+
 
 #Visualize hourly values
-plt.plot(range(8760), operational_emissions[0], label="direct_power", c="red" )
-plt.plot(range(8760), operational_emissions[1], label="ASHP", c="blue")
-plt.plot(range(8760), operational_emissions[2], label="GSHP", c="green")
-
-plt.plot(range(8760), electricity_demands_list[0], label="direct_power", c="lightcoral")
-plt.plot(range(8760), electricity_demands_list[1], label="ASHP", c="lightblue")
-plt.plot(range(8760), electricity_demands_list[2], label="GSHP", c="lightgreen")
-plt.legend()
-plt.show()
-
-
-#Visualize yearly value:
-
-plt.bar([0,1,2],[operational_emissions[0].sum()/1000.,operational_emissions[1].sum()/1000.,operational_emissions[2].sum()/1000.])
-plt.show()
+# plt.plot(range(8760), operational_emissions[0], label="direct_power", c="red", ls='--', lw="0.7", marker=".", ms=0.7 )
+# plt.plot(range(8760), operational_emissions[1], label="ASHP", c="blue", ls='--', lw="0.7", marker=".", ms=0.7)
+# plt.plot(range(8760), operational_emissions[2], label="GSHP", c="green", ls='--', lw="0.7", marker=".", ms=0.7)
+#
+# plt.plot(range(8760), net_electricity_demands_list[0], label="direct_power", c="lightcoral", ls='--', lw="0.7", marker=".", ms=0.7)
+# plt.plot(range(8760), net_electricity_demands_list[1], label="ASHP", c="lightblue", ls='--', lw="0.7",marker=".", ms=0.7)
+# plt.plot(range(8760), net_electricity_demands_list[2], label="GSHP", c="lightgreen", ls='--',lw="0.7", marker=".", ms=0.7)
+# plt.legend()
+# plt.show()

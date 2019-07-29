@@ -10,6 +10,7 @@ import supply_system
 import emission_system
 from radiation import Location
 from radiation import Window
+from radiation import PhotovoltaicSurface
 
 
 
@@ -48,6 +49,10 @@ Office=Building(window_area=4.0,
 
 SouthWindow = Window(azimuth_tilt=0, alititude_tilt = 90, glass_solar_transmittance=0.2,
                      glass_light_transmittance=0.5, area = 4)
+
+
+
+
 
 ## Define occupancy
 
