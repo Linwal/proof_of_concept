@@ -30,18 +30,34 @@ def electric_appliances_sia(energy_reference_area, type=1, value="standard"):
     return demand_profile #Wh
 
 
-def build_monthly_emission_factors():
+def build_yearly_emission_factors(export_assumption="c"):
+
+    choice = "TEF" + export_assumption
+    emissions_df = pd.read_excel(r"C:\Users\walkerl\Documents\code\proof_of_concept\data\emission_factors_AC.xlsx",
+                                 index="Time")
+    emissions_df = emissions_df.set_index('Time')
+    emissions_df.resample('Y').mean()
+    hourly_emission_factor = np.repeat(emissions_df.resample('Y').mean()[choice].to_numpy(),8760)/1000.0 #kgCO2eq/kWh
+    return hourly_emission_factor
+
+
+def build_monthly_emission_factors(export_assumption="c"):
     """
     This function creates simple monthly emission factors of the Swiss consumption mix based on the year 2015.
     It returns an hourly list of the monthly values. No input is needed. The list is generated here to omit hard coding
     values within the simulatin process.
     :return: np array of length 8760 with monthly emission factors on hourly resolution.
     """
-    grid_emission_factor = {"jan": .1108, "feb": .1257, "mar": .1175, "apr": .0937, "may": .0400, "jun": .0463,
-                            "jul": .0594, "aug": .0931, "sep": .1111, "oct": .1418, "nov": .1344, "dec": .1343} # for TEFd (AC)
+    if export_assumption=="c":
+        grid_emission_factor = {"jan": .1366, "feb": .1548, "mar": .1403, "apr": .1170, "may": .0578, "jun": .0716,
+                                "jul": .0956, "aug": .1096, "sep": .1341, "oct": .1750, "nov": .1644, "dec": .1577}  # for TEFc (AC)
 
-    # grid_emission_factor = {"jan": .1366, "feb": .1548, "mar": .1403, "apr": .1170, "may": .0578, "jun": .0716,
-    #                         "jul": .0956, "aug": .1096, "sep": .1341, "oct": .1750, "nov": .1644, "dec": .1577}  # for TEFc (AC)
+    elif export_assumption=="d":
+        grid_emission_factor = {"jan": .1108, "feb": .1257, "mar": .1175, "apr": .0937, "may": .0400, "jun": .0463,
+                                "jul": .0594, "aug": .0931, "sep": .1111, "oct": .1418, "nov": .1344, "dec": .1343}  # for TEFd (AC)
+
+    else:
+        "Choice of export assumption not valid"
 
     ## Factors above According to ST Alice Chevrier
     ## hours of the months:

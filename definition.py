@@ -56,7 +56,7 @@ t_set_heating = 20.0
 t_set_cooling = 26.0
 max_cooling_energy_per_floor_area=-np.inf
 max_heating_energy_per_floor_area=np.inf
-pv_area = 4.0 #m2
+pv_area = 1.5 #m2
 
 use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
 
@@ -140,7 +140,7 @@ Office_32 = Building(window_area=window_area,
 
 
 
-SouthWindow = Window(azimuth_tilt=0, alititude_tilt = 90, glass_solar_transmittance=0.2,
+SouthWindow = Window(azimuth_tilt=0, alititude_tilt = 45, glass_solar_transmittance=0.2,
                      glass_light_transmittance=0.5, area =4)
 
 ## Define PV to this building
@@ -151,6 +151,7 @@ RoofPV = PhotovoltaicSurface(azimuth_tilt=0, alititude_tilt = 45, stc_efficiency
 
 ## Define occupancy
 occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\schedules_el_OFFICE.csv")
+
 
 ## Define constants
 
@@ -177,7 +178,7 @@ electric_appliances = dp.electric_appliances_sia(energy_reference_area=room_dept
 t_m_prev=20.0
 
 
-hourly_emission_factors = dp.build_grid_emission_hourly("d")
+hourly_emission_factors = dp.build_yearly_emission_factors("d")
 
 office_list = [Office_1X, Office_2X, Office_32]
 
@@ -289,6 +290,7 @@ annual_negative_emissions = negative_emissions.sum(axis=1)
 
 
 total_emissions = annual_embodied_emissions+annual_operational_emissions+pv_embodied + annual_negative_emissions
+print(total_emissions)
 
 
 p0 = plt.bar([0,1,2], [pv_embodied,pv_embodied,pv_embodied], color="y")
