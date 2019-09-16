@@ -14,7 +14,27 @@ from radiation import PhotovoltaicSurface
 
 
 Zurich = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw")
+Recife = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\BRA_Recife.828990_IWEC.epw")
+SaoPaolo = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\BRA_Sao.Paulo-Congonhas.837800_SWERA.epw")
+Vancouver = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\CAN_BC_Vancouver.718920_CWEC.epw")
+PuntaArenas = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\CHL_Punta.Arenas.859340_IWEC.epw")
+Stuttgart = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DEU_Stuttgart.107380_IWEC.epw")
+Copenhagen = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DNK_Copenhagen.061800_IWEC.epw")
+Algier = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DZA_Algiers.603900_IWEC.epw")
+Barcelona = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ESP_Barcelona.081810_IWEC.epw")
+London = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\GBR_London.Gatwick.037760_IWEC.epw")
+Milano = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ITA_Milano-Linate.160800_IGDG.epw")
+Rome =Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ITA_Roma-Ciampino.162390_IGDG.epw")
+Kiruna = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\SWE_Kiruna.020440_IWEC.epw")
+Ostersund = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\SWE_Ostersund.Froson.022260_IWEC.epw")
+LongBeach_LA = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_CA_Long.Beach-Daugherty.Field.722970_TMY3.epw")
+DesMoines = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IA_Des.Moines.Intl.AP.725460_TMY3.epw")
+Chicago = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IL_Chicago-OHare.Intl.AP.725300_TMY3.epw")
 
+LocList = [Zurich, Recife, SaoPaolo, Vancouver, PuntaArenas, Stuttgart, Copenhagen, Algier, Barcelona, London, Milano,
+           Rome, Kiruna, Ostersund, LongBeach_LA, DesMoines, Chicago]
+
+Loc = Zurich
 
 
 window_area = 6.0  # m2
@@ -28,15 +48,15 @@ lighting_utilisation_factor=0.45
 lighting_maintenance_factor=0.9
 u_walls = 0.17  # W/m2K
 u_windows = 1.0  # W/m2K
-ach_vent= 1.0  # Air changes per hour through ventilation [Air Changes Per Hour]
+ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
 ach_infl= 0.4 # Air changes per hour through infiltration [Air Changes Per Hour]
 ventilation_efficiency=0.6
 thermal_capacitance_per_floor_area = 165000
 t_set_heating = 20.0
 t_set_cooling = 26.0
-max_cooling_energy_per_floor_area=0
+max_cooling_energy_per_floor_area=-np.inf
 max_heating_energy_per_floor_area=np.inf
-pv_area = 1 #m2
+pv_area = 4.0 #m2
 
 use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
 
@@ -61,7 +81,7 @@ Office_1X = Building(window_area=window_area,
                 max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area,
                 max_heating_energy_per_floor_area=max_heating_energy_per_floor_area,
                 heating_supply_system=supply_system.ElectricHeating,
-                cooling_supply_system=supply_system.HeatPumpAir,
+                cooling_supply_system=supply_system.DirectCooler, # What can we choose here for purely electric case?
                 heating_emission_system=emission_system.FloorHeating,
                 cooling_emission_system=emission_system.AirConditioning,)
 
@@ -87,7 +107,7 @@ Office_2X = Building(window_area=window_area,
                 heating_supply_system=supply_system.HeatPumpAir,
                 cooling_supply_system=supply_system.HeatPumpAir,
                 heating_emission_system=emission_system.FloorHeating,
-                cooling_emission_system=emission_system.AirConditioning,)
+                cooling_emission_system=emission_system.FloorHeating,)
 
 Office_32 = Building(window_area=window_area,
                 external_envelope_area=external_envelope_area,
@@ -109,9 +129,9 @@ Office_32 = Building(window_area=window_area,
                 max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area,
                 max_heating_energy_per_floor_area=max_heating_energy_per_floor_area,
                 heating_supply_system=supply_system.HeatPumpWater,
-                cooling_supply_system=supply_system.HeatPumpAir,
+                cooling_supply_system=supply_system.HeatPumpWater,
                 heating_emission_system=emission_system.FloorHeating,
-                cooling_emission_system=emission_system.AirConditioning,)
+                cooling_emission_system=emission_system.FloorHeating,)
 
 
 ### emission factors according to empa_Alice Chevrier Semester Project in g/Wh
@@ -136,7 +156,7 @@ occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimula
 
 gain_per_person = 100 # W per sqm
 appliance_gains= 14 #W per sqm
-max_occupancy=3.0
+max_occupancy=4.0
 
 ## Define embodied emissions: # In a later stage this could be included in the RC model "supply_system.py file"
 coeq_gshp = 272.5 #kg/kW [KBOB 2016]
@@ -144,6 +164,8 @@ coeq_borehole = 28.1 #kg/m[KBOB 2016]
 coeq_ashp = 363.75 #kg/kW [KBOB 2016]
 coeq_underfloor_heating = 5.06 #kg/m2 [KBOB]
 coeq_pv = 2080 # kg/kWp [KBOB 2016]
+
+coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
 
 
 #electricity demand from appliances
@@ -155,7 +177,7 @@ electric_appliances = dp.electric_appliances_sia(energy_reference_area=room_dept
 t_m_prev=20.0
 
 
-hourly_emission_factors = dp.build_monthly_emission_factors()
+hourly_emission_factors = dp.build_grid_emission_hourly("d")
 
 office_list = [Office_1X, Office_2X, Office_32]
 
@@ -163,10 +185,12 @@ office_list = [Office_1X, Office_2X, Office_32]
 electricity_demands_list = []
 pv_yields_list = []
 heating_demands_list = []
+
 for Office in office_list:
     electricity_demand = np.empty(8760)
     solar_yield = []
     heating_demand = []
+
     for hour in range(8760):
 
         #Occupancy for the time step
@@ -175,21 +199,21 @@ for Office in office_list:
         internal_gains = occupancy*gain_per_person + appliance_gains*Office.floor_area
 
         #Extract the outdoor temperature in Zurich for that hour
-        t_out = Zurich.weather_data['drybulb_C'][hour]
+        t_out = Loc.weather_data['drybulb_C'][hour]
 
-        Altitude, Azimuth = Zurich.calc_sun_position(latitude_deg=47.480, longitude_deg=8.536, year=2015, hoy=hour)
+        Altitude, Azimuth = Loc.calc_sun_position(latitude_deg=47.480, longitude_deg=8.536, year=2015, hoy=hour)
 
         SouthWindow.calc_solar_gains(sun_altitude = Altitude, sun_azimuth = Azimuth,
-                                     normal_direct_radiation= Zurich.weather_data['dirnorrad_Whm2'][hour],
-                                     horizontal_diffuse_radiation = Zurich.weather_data['difhorrad_Whm2'][hour])
+                                     normal_direct_radiation= Loc.weather_data['dirnorrad_Whm2'][hour],
+                                     horizontal_diffuse_radiation = Loc.weather_data['difhorrad_Whm2'][hour])
 
         SouthWindow.calc_illuminance(sun_altitude = Altitude, sun_azimuth = Azimuth,
-                                     normal_direct_illuminance = Zurich.weather_data['dirnorillum_lux'][hour],
-                                     horizontal_diffuse_illuminance = Zurich.weather_data['difhorillum_lux'][hour])
+                                     normal_direct_illuminance = Loc.weather_data['dirnorillum_lux'][hour],
+                                     horizontal_diffuse_illuminance = Loc.weather_data['difhorillum_lux'][hour])
 
         RoofPV.calc_solar_yield(sun_altitude = Altitude, sun_azimuth=Azimuth,
-                               normal_direct_radiation=Zurich.weather_data['dirnorrad_Whm2'][hour],
-                               horizontal_diffuse_radiation=Zurich.weather_data['difhorrad_Whm2'][hour])
+                               normal_direct_radiation=Loc.weather_data['dirnorrad_Whm2'][hour],
+                               horizontal_diffuse_radiation=Loc.weather_data['difhorrad_Whm2'][hour])
 
 
         Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,t_out=t_out,
@@ -204,7 +228,7 @@ for Office in office_list:
 
 
         heating_demand.append(Office.energy_demand)
-        electricity_demand[hour] = Office.heating_sys_electricity
+        electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity
         solar_yield.append(RoofPV.solar_yield)
 
     electricity_demand = electricity_demand + electric_appliances
@@ -218,8 +242,11 @@ net_electricity_demands_list = np.subtract(electricity_demands_list, pv_yields_l
 net_operational_emissions = np.multiply(net_electricity_demands_list/1000.,hourly_emission_factors)
 operational_emissions =  np.copy(net_operational_emissions)
 operational_emissions[operational_emissions<0] = 0.00
-#negative_emissions = np.copy(net_operational_emissions)
-#negative_emissions[negative_emissions>0] = 0.00
+
+# negative emissions are allocated in the way that the grid emissions are omitted with the supply of PV power. Zero is
+# allocated because the full embodied emissions of the PV system are included
+negative_emissions = np.copy(net_operational_emissions)
+negative_emissions[negative_emissions>0] = 0.00
 
 
 ## embodied emissions:
@@ -230,14 +257,13 @@ pv_embodied = kwp_pv*coeq_pv
 
 
 # direct electrical
-embodied_direct = 0  #_embodied emissions of the electrical heating system
+el_underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq [wird als zusatz genommen weil mit heater alleine ja noch nicht geheizt]
+embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[1],97.5)/1000. +el_underfloor_heating_embodied  #_embodied emissions of the electrical heating system
 
 # ASHP
 ashp_power = np.percentile(heating_demands_list[1],97.5)/1000. #kW
-
 ashp_embodied = coeq_ashp*ashp_power # kgCO2eq
 underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
-
 embodied_ashp = ashp_embodied + underfloor_heating_embodied # + pv_embodied
 
 # GSHP
@@ -246,12 +272,9 @@ gshp_power = np.percentile(heating_demands_list[2],97.5)/1000 #kW
 gshp_embodied = coeq_gshp * gshp_power # kgCO2eq
 # underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
 borehole_embodied = coeq_borehole * borehole_depth * gshp_power
-
 embodied_gshp = gshp_embodied + underfloor_heating_embodied + borehole_embodied # + pv_embodied
-
-
-
 embodied_emissions = np.array([embodied_direct, embodied_ashp, embodied_gshp])
+
 
 # Annual for 25years lifetime
 lifetime=25. #y
@@ -260,25 +283,23 @@ pv_embodied = pv_embodied/lifetime
 
 
 
-
 #### Total emissions
-
-
 annual_operational_emissions = operational_emissions.sum(axis=1)
-#annual_negative_emissions = negative_emissions.sum(axis=1)
+annual_negative_emissions = negative_emissions.sum(axis=1)
 
 
-total_emissions = annual_embodied_emissions+annual_operational_emissions+pv_embodied # + annual_negative_emissions
-print(total_emissions)
+total_emissions = annual_embodied_emissions+annual_operational_emissions+pv_embodied + annual_negative_emissions
+
 
 p0 = plt.bar([0,1,2], [pv_embodied,pv_embodied,pv_embodied], color="y")
 p1 = plt.bar([0,1,2], annual_embodied_emissions, color="lightblue", bottom=pv_embodied)
 p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions+pv_embodied, color="blue")
-#p3 = plt.bar([0,1,2], annual_negative_emissions, bottom=[0,0,0], color="orange")
+p3 = plt.bar([0,1,2], annual_negative_emissions, bottom=[0,0,0], color="orange")
+
 plt.title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
 plt.ylabel("kgCO2eq/annum")
 plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-plt.legend((p0[0], p1[0], p2[0]),('embodied PV', 'embodied systems', 'operational'))
+plt.legend((p0[0], p1[0], p2[0], p3[0]),('embodied PV', 'embodied systems', 'operational', 'replaced grid emissions'))
 plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
 plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
 plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
