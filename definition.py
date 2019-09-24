@@ -188,7 +188,7 @@ coeq_pv = 2080 # kg/kWp [KBOB 2016]
 coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
 
 #standard on GWP100, 0.18m insulation
-coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area)
+coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area-window_area)
 
 
 #electricity demand from appliances
