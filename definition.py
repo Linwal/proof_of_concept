@@ -1,9 +1,11 @@
 import sys
 sys.path.insert(1, r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator")
+import os
 from building_physics import Building
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
 
 import data_prep as dp
 import supply_system
@@ -11,6 +13,10 @@ import emission_system
 from radiation import Location
 from radiation import Window
 from radiation import PhotovoltaicSurface
+
+
+dirname = os.path.dirname(__file__)
+wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
 
 
 Zurich = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw")
@@ -31,13 +37,25 @@ LongBeach_LA = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_
 DesMoines = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IA_Des.Moines.Intl.AP.725460_TMY3.epw")
 Chicago = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IL_Chicago-OHare.Intl.AP.725300_TMY3.epw")
 
+wall_name = "Betonwand, Wärmedämmung mit Lattenrost, Verkleidung"
+# wall_name = "Holzblockwand, Aussenwärmedämmung, Verkleidung"
+# wall_name = "Sichtbetonwand, Aussenwärmedämmung verputzt"
+# wall_name = "Sichtbacksteinmauerwerk, Aussenwärmedämmung verputzt"
+
+
+
+
+
 LocList = [Zurich, Recife, SaoPaolo, Vancouver, PuntaArenas, Stuttgart, Copenhagen, Algier, Barcelona, London, Milano,
            Rome, Kiruna, Ostersund, LongBeach_LA, DesMoines, Chicago]
 
 Loc = Zurich
 
 
-window_area = 6.0  # m2
+
+
+
+window_area = 6.0  # m2  --> -check to include that in the window Object
 external_envelope_area=15.0  # m2 (south oriented)
 room_depth=7.0  # m
 room_width=5.0  # m
@@ -46,17 +64,18 @@ lighting_load=11.7  # [W/m2] (source?)
 lighting_control = 300.0  # lux threshold at which the lights turn on.
 lighting_utilisation_factor=0.45
 lighting_maintenance_factor=0.9
-u_walls = 0.17  # W/m2K
+u_walls = dp.extract_wall_data(wall_data_path, name=wall_name, type="U-value")
+print("U vlaue: " + str(u_walls))
 u_windows = 1.0  # W/m2K
 ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
 ach_infl= 0.4 # Air changes per hour through infiltration [Air Changes Per Hour]
 ventilation_efficiency=0.6
-thermal_capacitance_per_floor_area = 165000
+thermal_capacitance_per_floor_area = 165000  # woher kommt dieser Wert und was bedeutet er?
 t_set_heating = 20.0
 t_set_cooling = 26.0
 max_cooling_energy_per_floor_area=-np.inf
 max_heating_energy_per_floor_area=np.inf
-pv_area = 1.5 #m2
+pv_area = 2.5 #m2
 
 use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
 
@@ -140,12 +159,12 @@ Office_32 = Building(window_area=window_area,
 
 
 
-SouthWindow = Window(azimuth_tilt=0, alititude_tilt = 45, glass_solar_transmittance=0.2,
-                     glass_light_transmittance=0.5, area =4)
+SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90, glass_solar_transmittance=0.2,
+                     glass_light_transmittance=0.5, area =window_area)
 
 ## Define PV to this building
 
-RoofPV = PhotovoltaicSurface(azimuth_tilt=0, alititude_tilt = 45, stc_efficiency=0.18,
+RoofPV = PhotovoltaicSurface(azimuth_tilt=-45, alititude_tilt = 90, stc_efficiency=0.18,
                      performance_ratio=0.8, area = pv_area)
 
 
@@ -168,6 +187,9 @@ coeq_pv = 2080 # kg/kWp [KBOB 2016]
 
 coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
 
+#standard on GWP100, 0.18m insulation
+coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area)
+
 
 #electricity demand from appliances
 
@@ -178,7 +200,7 @@ electric_appliances = dp.electric_appliances_sia(energy_reference_area=room_dept
 t_m_prev=20.0
 
 
-hourly_emission_factors = dp.build_yearly_emission_factors("d")
+hourly_emission_factors = dp.build_grid_emission_hourly("c")
 
 office_list = [Office_1X, Office_2X, Office_32]
 
@@ -186,11 +208,14 @@ office_list = [Office_1X, Office_2X, Office_32]
 electricity_demands_list = []
 pv_yields_list = []
 heating_demands_list = []
+cooling_demands_list = []
 
 for Office in office_list:
     electricity_demand = np.empty(8760)
     solar_yield = []
     heating_demand = []
+    cooling_demand = []
+    solar_gains = []
 
     for hour in range(8760):
 
@@ -228,17 +253,19 @@ for Office in office_list:
 
 
 
-        heating_demand.append(Office.energy_demand)
+        heating_demand.append(Office.heating_sys_electricity)
+        cooling_demand.append(Office.cooling_sys_electricity)
+        solar_gains.append(SouthWindow.solar_gains)
         electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity
         solar_yield.append(RoofPV.solar_yield)
 
     electricity_demand = electricity_demand + electric_appliances
     heating_demands_list.append(heating_demand)
+    cooling_demands_list.append(cooling_demand)
     electricity_demands_list.append(electricity_demand) # in Wh
     pv_yields_list.append(solar_yield) #in Wh
 
 net_electricity_demands_list = np.subtract(electricity_demands_list, pv_yields_list)
-
 
 net_operational_emissions = np.multiply(net_electricity_demands_list/1000.,hourly_emission_factors)
 operational_emissions =  np.copy(net_operational_emissions)
