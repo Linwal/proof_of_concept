@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 
 
 
@@ -95,4 +96,29 @@ def build_grid_emission_hourly(export_assumption="c"):
     choice="TEF"+export_assumption
     hourly_emission_factors = emissions_df[choice].to_numpy()/1000.0
     return(hourly_emission_factors)
+
+
+def extract_wall_data(filepath, name="Betonwand, Wärmedämmung mit Lattenrost, Verkleidung", area=0,
+                               type="GWP[kgCO2eq/m2]", ):
+    """
+    MAKE SURE TO HAVE THE RIGHT DIMENSIONS IN YOUR SOURCE FILE AND IN YOUR CALCULATION
+    THIS FUNCTION HAS TO BE EXTENDED AND CONSOLIDATED
+    :param filepath:
+    :param name:
+    :param area:
+    :param type:
+    :return:
+    """
+    if area <=0 and type!="U-value":
+        print("No wall area is specified for the calculation of the wall's embodied impact")
+        return 0
+
+    else:
+
+        data = pd.read_excel(filepath, header=0, index_col=1)
+        return(data.where(data["Bezeichnung"] == name)[type][0]*area)
+        ## The zero is here for the moment becaues each element is included with 0.18 and 0.25m insulation.
+        ## This way always the 0.18 version is chosen.
+
+
 
