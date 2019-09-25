@@ -55,7 +55,7 @@ Loc = Zurich
 
 
 
-window_area = 6.0  # m2  --> -check to include that in the window Object
+window_area = 6.0
 external_envelope_area=15.0  # m2 (south oriented)
 room_depth=7.0  # m
 room_width=5.0  # m
@@ -164,7 +164,7 @@ SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90, glass_solar_transmitt
 
 ## Define PV to this building
 
-RoofPV = PhotovoltaicSurface(azimuth_tilt=-45, alititude_tilt = 90, stc_efficiency=0.18,
+RoofPV = PhotovoltaicSurface(azimuth_tilt=0, alititude_tilt = 45, stc_efficiency=0.18,
                      performance_ratio=0.8, area = pv_area)
 
 
@@ -212,7 +212,7 @@ cooling_demands_list = []
 
 for Office in office_list:
     electricity_demand = np.empty(8760)
-    solar_yield = []
+    solar_yield = np.empty(8760)
     heating_demand = []
     cooling_demand = []
     solar_gains = []
@@ -257,7 +257,7 @@ for Office in office_list:
         cooling_demand.append(Office.cooling_sys_electricity)
         solar_gains.append(SouthWindow.solar_gains)
         electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity
-        solar_yield.append(RoofPV.solar_yield)
+        solar_yield[hour]=RoofPV.solar_yield
 
     electricity_demand = electricity_demand + electric_appliances
     heating_demands_list.append(heating_demand)
@@ -267,14 +267,20 @@ for Office in office_list:
 
 net_electricity_demands_list = np.subtract(electricity_demands_list, pv_yields_list)
 
-net_operational_emissions = np.multiply(net_electricity_demands_list/1000.,hourly_emission_factors)
-operational_emissions =  np.copy(net_operational_emissions)
-operational_emissions[operational_emissions<0] = 0.00
+net_self_consumption = np.empty((len(office_list), 8760))
+for i in range(len(office_list)):
+    for hour in range(8760):
+        net_self_consumption[i][hour] = min(pv_yields_list[i][hour], electricity_demands_list[i][hour])
 
-# negative emissions are allocated in the way that the grid emissions are omitted with the supply of PV power. Zero is
-# allocated because the full embodied emissions of the PV system are included
-negative_emissions = np.copy(net_operational_emissions)
-negative_emissions[negative_emissions>0] = 0.00
+
+# this is the ratio of electricity used to electricity produced and thus the emissions that are allocated to the building.
+embodied_pv_ratio = net_self_consumption.sum(axis=1)/np.array(pv_yields_list).sum(axis=1)
+
+
+
+net_operational_emissions = np.multiply(net_electricity_demands_list/1000.,hourly_emission_factors)
+operational_emissions = np.copy(net_operational_emissions)
+operational_emissions[operational_emissions<0] = 0.00
 
 
 ## embodied emissions:
@@ -286,13 +292,13 @@ pv_embodied = kwp_pv*coeq_pv
 
 # direct electrical
 el_underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq [wird als zusatz genommen weil mit heater alleine ja noch nicht geheizt]
-embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[1],97.5)/1000. +el_underfloor_heating_embodied  #_embodied emissions of the electrical heating system
+embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[1],97.5)/1000. +el_underfloor_heating_embodied + pv_embodied * embodied_pv_ratio[0] #_embodied emissions of the electrical heating system
 
 # ASHP
 ashp_power = np.percentile(heating_demands_list[1],97.5)/1000. #kW
 ashp_embodied = coeq_ashp*ashp_power # kgCO2eq
 underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
-embodied_ashp = ashp_embodied + underfloor_heating_embodied # + pv_embodied
+embodied_ashp = ashp_embodied + underfloor_heating_embodied + pv_embodied*embodied_pv_ratio[1]
 
 # GSHP
 borehole_depth = 20 #m/kW - entspricht einer spezifischen Entzugsleistung von 50W/m
@@ -300,35 +306,34 @@ gshp_power = np.percentile(heating_demands_list[2],97.5)/1000 #kW
 gshp_embodied = coeq_gshp * gshp_power # kgCO2eq
 # underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
 borehole_embodied = coeq_borehole * borehole_depth * gshp_power
-embodied_gshp = gshp_embodied + underfloor_heating_embodied + borehole_embodied # + pv_embodied
+embodied_gshp = gshp_embodied + underfloor_heating_embodied + borehole_embodied + pv_embodied * embodied_pv_ratio[2]
 embodied_emissions = np.array([embodied_direct, embodied_ashp, embodied_gshp])
 
 
 # Annual for 25years lifetime
 lifetime=25. #y
 annual_embodied_emissions = embodied_emissions/lifetime
-pv_embodied = pv_embodied/lifetime
 
 
 
 #### Total emissions
 annual_operational_emissions = operational_emissions.sum(axis=1)
-annual_negative_emissions = negative_emissions.sum(axis=1)
 
 
-total_emissions = annual_embodied_emissions+annual_operational_emissions+pv_embodied + annual_negative_emissions
+
+total_emissions = annual_embodied_emissions+annual_operational_emissions
 print(total_emissions)
 
 
-p0 = plt.bar([0,1,2], [pv_embodied,pv_embodied,pv_embodied], color="y")
-p1 = plt.bar([0,1,2], annual_embodied_emissions, color="lightblue", bottom=pv_embodied)
-p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions+pv_embodied, color="blue")
-p3 = plt.bar([0,1,2], annual_negative_emissions, bottom=[0,0,0], color="orange")
+
+p1 = plt.bar([0,1,2], annual_embodied_emissions, color="lightblue")
+p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions, color="blue")
+p0 = plt.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime, pv_embodied*embodied_pv_ratio[1]/lifetime, pv_embodied*embodied_pv_ratio[2]/lifetime], color="y")
 
 plt.title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
 plt.ylabel("kgCO2eq/annum")
 plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-plt.legend((p0[0], p1[0], p2[0], p3[0]),('embodied PV', 'embodied systems', 'operational', 'replaced grid emissions'))
+plt.legend((p0[0], p1[0], p2[0]),('PV allocated', 'embodied systems', 'grid allocated'))
 plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
 plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
 plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
