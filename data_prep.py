@@ -109,13 +109,16 @@ def extract_wall_data(filepath, name="Betonwand, Wärmedämmung mit Lattenrost, 
     :param type:
     :return:
     """
-    if area <=0 and type!="U-value":
+    data = pd.read_excel(filepath, header=0, index_col=1)
+
+    if type == "U-value":
+        return (data.where(data["Bezeichnung"] == name)[type][0])
+
+    elif area <=0:
         print("No wall area is specified for the calculation of the wall's embodied impact")
         return 0
 
     else:
-
-        data = pd.read_excel(filepath, header=0, index_col=1)
         return(data.where(data["Bezeichnung"] == name)[type][0]*area)
         ## The zero is here for the moment becaues each element is included with 0.18 and 0.25m insulation.
         ## This way always the 0.18 version is chosen.
