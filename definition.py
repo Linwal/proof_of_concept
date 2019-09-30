@@ -65,12 +65,19 @@ lighting_control = 300.0  # lux threshold at which the lights turn on.
 lighting_utilisation_factor=0.45
 lighting_maintenance_factor=0.9
 u_walls = dp.extract_wall_data(wall_data_path, name=wall_name, type="U-value")
-print("U vlaue: " + str(u_walls))
+print("U value: " + str(u_walls))
 u_windows = 1.0  # W/m2K
 ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
 ach_infl= 0.4 # Air changes per hour through infiltration [Air Changes Per Hour]
 ventilation_efficiency=0.6
-thermal_capacitance_per_floor_area = 165000  # woher kommt dieser Wert und was bedeutet er?
+thermal_capacitance_per_floor_area = dp.extract_wall_data(wall_data_path, name=wall_name,
+                                                          type ="Thermal capacitance [kJ/m2K]",
+                                                          area=external_envelope_area-window_area)/\
+                                     (room_width*room_depth)*1000  #factor 1000 coming from the conversion of kJ to J
+
+print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area)
+
+# thermal_capacitance_per_floor_area = 165000  # Thermal capacitance of the room per floor area [J/m2K]
 t_set_heating = 20.0
 t_set_cooling = 26.0
 max_cooling_energy_per_floor_area=-np.inf
