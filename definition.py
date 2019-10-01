@@ -13,14 +13,14 @@ from radiation import Window
 from radiation import PhotovoltaicSurface
 
 
-def run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height, wall_name, u_windows, ach_vent,
+def run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height, thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent,
                    ach_infl, ventilation_efficiency, max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area,
                    pv_area, pv_efficiency, pv_tilt, pv_azimuth, lifetime, strom_mix):
 
 
 
-    dirname = os.path.dirname(__file__)
-    wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
+    # dirname = os.path.dirname(__file__)
+    # wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
 
 
     Zurich = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw")
@@ -68,18 +68,18 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     lighting_control = 300.0  # lux threshold at which the lights turn on.
     lighting_utilisation_factor=0.45
     lighting_maintenance_factor=0.9
-    u_walls = dp.extract_wall_data(wall_data_path, name=wall_name, type="U-value")
-    print("U value: " + str(u_walls))
+    # u_walls = dp.extract_wall_data(wall_data_path, name=wall_name, type="U-value")
+    # print("U value: " + str(u_walls))
     # u_windows = 1.0  # W/m2K
     # ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
     # ach_infl= 0.4 # Air changes per hour through infiltration [Air Changes Per Hour]
     # ventilation_efficiency=0.6
-    thermal_capacitance_per_floor_area = dp.extract_wall_data(wall_data_path, name=wall_name,
-                                                              type ="Thermal capacitance [kJ/m2K]",
-                                                              area=external_envelope_area-window_area)/\
-                                         (room_width*room_depth)*1000  #factor 1000 coming from the conversion of kJ to J
-
-    print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area)
+    # thermal_capacitance_per_floor_area = dp.extract_wall_data(wall_data_path, name=wall_name,
+    #                                                           type ="Thermal capacitance [kJ/m2K]",
+    #                                                           area=external_envelope_area-window_area)/\
+    #                                      (room_width*room_depth)*1000  #factor 1000 coming from the conversion of kJ to J
+    #
+    # print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area)
     # thermal_capacitance_per_floor_area = 165000  # Thermal capacitance of the room per floor area [J/m2K]
 
     t_set_heating = 20.0
@@ -202,7 +202,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
 
     #standard on GWP100, 0.18m insulation
-    coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area-window_area)
+    # coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area-window_area)
 
 
     #electricity demand from appliances
@@ -214,6 +214,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     t_m_prev=20.0
 
 
+    # hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
+    # hourly_emission_factors = dp.build_monthly_emission_factors(strom_mix)
     hourly_emission_factors = dp.build_grid_emission_hourly(strom_mix)
 
     office_list = [Office_1X, Office_2X, Office_32]
@@ -336,26 +338,26 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     total_emissions = annual_embodied_emissions+annual_operational_emissions
     print(total_emissions)
 
+    #
+    p1 = plt.bar([0,1,2], annual_embodied_emissions, color="lightblue")
+    p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions, color="blue")
+    p0 = plt.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime, pv_embodied*embodied_pv_ratio[1]/lifetime, pv_embodied*embodied_pv_ratio[2]/lifetime], color="y")
+
+    plt.title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
+    plt.ylabel("kgCO2eq/annum")
+    plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
+    plt.legend((p0[0], p1[0], p2[0]),('PV allocated', 'embodied systems', 'grid allocated'))
+    plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
+    plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
+    plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
+    # plt.ylim(0,100)
+    plt.show()
+    #
+
+
+
+
     return total_emissions, annual_operational_emissions, annual_embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area
-    #
-    # p1 = plt.bar([0,1,2], annual_embodied_emissions, color="lightblue")
-    # p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions, color="blue")
-    # p0 = plt.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime, pv_embodied*embodied_pv_ratio[1]/lifetime, pv_embodied*embodied_pv_ratio[2]/lifetime], color="y")
-    #
-    # plt.title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
-    # plt.ylabel("kgCO2eq/annum")
-    # plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-    # plt.legend((p0[0], p1[0], p2[0]),('PV allocated', 'embodied systems', 'grid allocated'))
-    # plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
-    # plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
-    # plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
-    # # plt.ylim(0,100)
-    # plt.show()
-
-
-
-
-
 
 
 
