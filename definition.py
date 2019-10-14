@@ -329,27 +329,31 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     # Annual for 25years lifetime
     # lifetime=25. #y
     annual_embodied_emissions = embodied_emissions/lifetime
-
+    normalized_annual_embodied_emissions = annual_embodied_emissions/(room_width*room_depth)
     #### Total emissions
     annual_operational_emissions = operational_emissions.sum(axis=1)
-
-
+    normalized_annual_operational_emissions = annual_operational_emissions/(room_width*room_depth)
 
     total_emissions = annual_embodied_emissions+annual_operational_emissions
-    print(total_emissions)
+    normalized_total_emissions = normalized_annual_embodied_emissions+normalized_annual_operational_emissions
 
+    print(normalized_total_emissions)
     #
-    p1 = plt.bar([0,1,2], annual_embodied_emissions, color="lightblue")
-    p2 = plt.bar([0,1,2], annual_operational_emissions, bottom=annual_embodied_emissions, color="blue")
-    p0 = plt.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime, pv_embodied*embodied_pv_ratio[1]/lifetime, pv_embodied*embodied_pv_ratio[2]/lifetime], color="y")
+    # #
+    p1 = plt.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue")
+    p2 = plt.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
+                 color="blue")
+    p0 = plt.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
+                           pv_embodied*embodied_pv_ratio[1]/lifetime/(room_depth*room_width),
+                           pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y")
 
     plt.title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
     plt.ylabel("kgCO2eq/annum")
     plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
     plt.legend((p0[0], p1[0], p2[0]),('PV allocated', 'embodied systems', 'grid allocated'))
-    plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
-    plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
-    plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
+    # plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
+    # plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
+    # plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
     # plt.ylim(0,100)
     plt.show()
     #

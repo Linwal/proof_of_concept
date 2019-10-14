@@ -79,7 +79,7 @@ total_emission_factor = domestic_emissions_df.sum(axis=1)
 total_production_and_import = domestic_production.sum(axis=1)
 
 for i in range(len(neighbour_countries)):
-    # fill_value=0 resolves the problem of having NANs in the cross_border_flows
+
     total_emission_factor = total_emission_factor +(import_cross_border_flows[i] * (neighbour_emission_factors[i]))
     total_production_and_import.add(import_cross_border_flows[i])
 

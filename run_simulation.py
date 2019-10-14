@@ -87,6 +87,7 @@ for i in range(len(data_list)) :
 
     emission_array[i] = total_emissions
 
+emission_array
 print(emission_array)
 
 xlabel = "PV efficiency"
