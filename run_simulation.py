@@ -14,17 +14,17 @@ dirname = os.path.dirname(__file__)
 wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
 
 
-
-window_area = 6.0
+window_area = 10.0
+## Add window g-value here!
 external_envelope_area=15.0  # m2 (south oriented)
 room_depth=7.0  # m
 room_width=5.0  # m
 room_height=3.0  # m
 u_windows = 1.0  # W/m2K
 ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
-ach_infl= 0.4 # Air changes per hour through infiltration [Air Changes Per Hour]
-ventilation_efficiency=0.6
-max_cooling_energy_per_floor_area=0.0 #-np.inf
+ach_infl= 1.5 # Air changes per hour through infiltration [Air Changes Per Hour]
+ventilation_efficiency=0.4
+max_cooling_energy_per_floor_area=-np.inf
 max_heating_energy_per_floor_area=np.inf
 pv_area = 2.5 #m2
 pv_efficiency = 0.18

@@ -173,7 +173,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
 
-    SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90, glass_solar_transmittance=0.2,
+    SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90, glass_solar_transmittance=0.5,
                          glass_light_transmittance=0.5, area =window_area)
 
     ## Define PV to this building
@@ -337,24 +337,33 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     total_emissions = annual_embodied_emissions+annual_operational_emissions
     normalized_total_emissions = normalized_annual_embodied_emissions+normalized_annual_operational_emissions
 
+    annual_heating_demand = sum(heating_demand)/(room_depth*room_width)
+    annual_cooling_demand = sum(cooling_demand)/(room_depth*room_width)
     print(normalized_total_emissions)
     #
     # #
-    p1 = plt.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue")
-    p2 = plt.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
-                 color="blue")
-    p0 = plt.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
+    fig, ax1 = plt.subplots()
+    ax1.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue", label="embodied systems")
+    ax1.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
+                 color="blue", label="grid allocated")
+    ax1.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
                            pv_embodied*embodied_pv_ratio[1]/lifetime/(room_depth*room_width),
-                           pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y")
+                           pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y",
+            label="PV allocated")
 
-    plt.title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
-    plt.ylabel("kgCO2eq/annum")
+    ax1.set_title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
+    ax1.set_ylabel("kgCO2eq/(a*m2)")
     plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-    plt.legend((p0[0], p1[0], p2[0]),('PV allocated', 'embodied systems', 'grid allocated'))
     # plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
     # plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
     # plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
     # plt.ylim(0,100)
+    ax2 = ax1.twinx()
+    ax2.axhline(annual_heating_demand/1000, color="red", label="heating demand")
+    ax2.axhline(annual_cooling_demand/1000, color= "blue", label="cooling demand")
+    ax2.set_ylabel("kWh/(a*m2)")
+    ax2.set_ylim(0)
+    plt.figlegend(loc="center right", bbox_to_anchor=(0.88,0.67))
     plt.show()
     #
 
@@ -362,8 +371,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     return total_emissions, annual_operational_emissions, annual_embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area
-
-
 
 
 
