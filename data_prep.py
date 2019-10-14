@@ -38,7 +38,11 @@ def build_yearly_emission_factors(export_assumption="c"):
                                  index="Time")
     emissions_df = emissions_df.set_index('Time')
     emissions_df.resample('Y').mean()
+    #swiss
     hourly_emission_factor = np.repeat(emissions_df.resample('Y').mean()[choice].to_numpy(),8760)/1000.0 #kgCO2eq/kWh
+
+    #europe
+    hourly_emission_factor = np.repeat(630,8760) / 1000.0  # kgCO2eq/kWh www.co2-monitor.ch/de/information/glossar/
     return hourly_emission_factor
 
 

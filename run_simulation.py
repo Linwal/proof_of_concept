@@ -65,8 +65,8 @@ print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area
 # data_list = [0.15, 0.18, 0.20, 0.22, .24, 0.26] # PV efficiency
 # data_list = [0,10,20,30,40,50,60,70,80,90] # PV tilt
 # data_list = [-90, -70, -50, -30, -10, 0, 10, 30, 50, 70, 90]
-# data_list = [0.1, 0.2, 0.4, 0.5, 0.6, 0.8, 0.9]
-data_list = [1]
+data_list = [0.1, 0.2, 0.4, 0.5, 0.6, 0.8, 0.9]
+# data_list = [1]
 
 emission_array = np.empty((len(data_list),3))
 
@@ -78,7 +78,7 @@ for i in range(len(data_list)) :
     # pv_efficiency = data_list[i]
     # pv_tilt = data_list[i]
     # pv_azimuth = data_list[i]
-    # ventilation_efficiency = data_list[i]
+    ventilation_efficiency = data_list[i]
     total_emissions, operational_emissions, embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area\
         = definition.run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
                                      thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl, ventilation_efficiency,
@@ -98,7 +98,7 @@ plt.title( "emissions vs " + str(xlabel))
 plt.ylabel(ylabel)
 plt.xlabel(xlabel)
 plt.legend(["pure electric", "ASHP", "GSHP"])
-plt.savefig(r"C:/Users/walkerl/polybox/phd/proof_of_concept/plots/19_10_01/low_area/" + str(xlabel) + ".png")
+# plt.savefig(r"C:/Users/walkerl/polybox/phd/proof_of_concept/plots/19_10_01/low_area/" + str(xlabel) + ".png")
 plt.show()
 
 data = pd.DataFrame(data = (window_area, external_envelope_area, room_depth, room_width, room_height, u_windows, u_walls,

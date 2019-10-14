@@ -216,7 +216,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
     # hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
     # hourly_emission_factors = dp.build_monthly_emission_factors(strom_mix)
-    hourly_emission_factors = dp.build_grid_emission_hourly(strom_mix)
+    hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
 
     office_list = [Office_1X, Office_2X, Office_32]
 
@@ -342,30 +342,26 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     print(normalized_total_emissions)
     #
     # #
-    fig, ax1 = plt.subplots()
-    ax1.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue", label="embodied systems")
-    ax1.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
-                 color="blue", label="grid allocated")
-    ax1.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
-                           pv_embodied*embodied_pv_ratio[1]/lifetime/(room_depth*room_width),
-                           pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y",
-            label="PV allocated")
-
-    ax1.set_title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
-    ax1.set_ylabel("kgCO2eq/(a*m2)")
-    plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-    # plt.axhline(y=total_emissions[0], xmin=0, xmax=1./3.)
-    # plt.axhline(y=total_emissions[1], xmin=1./3., xmax=2./3.)
-    # plt.axhline(y=total_emissions[2], xmin=2./3., xmax=1.)
-    # plt.ylim(0,100)
-    ax2 = ax1.twinx()
-    ax2.axhline(annual_heating_demand/1000, color="red", label="heating demand")
-    ax2.axhline(annual_cooling_demand/1000, color= "blue", label="cooling demand")
-    ax2.set_ylabel("kWh/(a*m2)")
-    ax2.set_ylim(0)
-    plt.figlegend(loc="center right", bbox_to_anchor=(0.88,0.67))
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue", label="embodied systems")
+    # ax1.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
+    #              color="blue", label="grid allocated")
+    # ax1.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
+    #                        pv_embodied*embodied_pv_ratio[1]/lifetime/(room_depth*room_width),
+    #                        pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y",
+    #         label="PV allocated")
     #
+    # ax1.set_title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
+    # ax1.set_ylabel("kgCO2eq/(a*m2)")
+    # plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
+    # ax2 = ax1.twinx()
+    # ax2.axhline(annual_heating_demand/1000, color="red", label="heating demand")
+    # ax2.axhline(annual_cooling_demand/1000, color= "blue", label="cooling demand")
+    # ax2.set_ylabel("kWh/(a*m2)")
+    # ax2.set_ylim(0)
+    # plt.figlegend(loc="center right", bbox_to_anchor=(0.88,0.67))
+    # plt.show()
+
 
 
 
