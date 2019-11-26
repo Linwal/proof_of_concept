@@ -30,8 +30,11 @@ pv_area = 2.5 #m2
 pv_efficiency = 0.18
 pv_tilt = 45
 pv_azimuth = 0
-lifetime = 25.00
+lifetime = 30.0 ## Here this is only the lifetime of the building systems, not the building.
 strom_mix = "d"
+
+grid_decarbonization_until = 2050  # Choose from 2050, 2060 and 2080
+grid_decarbonization_type = 'linear'  # Choose from 'linear', exponential, quadratic, constant
 
 u_walls = dp.extract_wall_data(wall_data_path, name=wall_name, type="U-value")
 print("U value: " + str(u_walls))
@@ -43,7 +46,6 @@ print("U value: " + str(u_walls))
 
 
 ## unefficient configuration
-
 # u_walls = 0.6
 # u_windows = 2.5
 # ventilation_efficiency = 0.1

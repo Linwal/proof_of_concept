@@ -327,7 +327,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     # Annual for 25years lifetime
-    # lifetime=25. #y
     annual_embodied_emissions = embodied_emissions/lifetime
     normalized_annual_embodied_emissions = annual_embodied_emissions/(room_width*room_depth)
     #### Total emissions

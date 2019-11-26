@@ -128,3 +128,20 @@ def extract_wall_data(filepath, name="Betonwand, Wärmedämmung mit Lattenrost, 
 
 
 
+def extract_decarbonization_factor(grid_decarbonization_path, grid_decarbonization_until, grid_decarbonization_type,
+                                   from_year, to_year):
+
+    decarb_factors = pd.read_excel(grid_decarbonization_path, sheet_name=str(grid_decarbonization_until),
+                                   header=[6,7], index_col=0)[grid_decarbonization_type]['Factor'].loc[from_year:to_year]
+
+    return decarb_factors.to_numpy()
+
+### This shows how to use the function:
+# grid_decarbonization_until = 2050  # Choose from 2050, 2060 and 2080
+# grid_decarbonization_type = 'linear'  # Choose from 'linear', exponential, quadratic, constant
+# grid_decarbonization_path = r'C:\Users\walkerl\Documents\code\proof_of_concept\data\future_decarbonization\Decarbonization sceanrios.xlsx'
+# from_year = 2019
+# to_year = 2080
+#
+# extract_decarbonization_factor(grid_decarbonization_until, grid_decarbonization_type, from_year, to_year)
+
