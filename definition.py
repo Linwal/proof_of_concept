@@ -13,9 +13,10 @@ from radiation import Window
 from radiation import PhotovoltaicSurface
 
 
-def run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height, thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent,
-                   ach_infl, ventilation_efficiency, max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area,
-                   pv_area, pv_efficiency, pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path):
+def run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
+                   thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl, ventilation_efficiency,
+                   max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area, pv_area, pv_efficiency,
+                   pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path, grid_decarbonization_factors):
 
 
 
@@ -182,7 +183,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     ## Define occupancy
-    occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\schedules_el_OFFICE.csv")
+    occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\schedules_el_SINGLE_RES.csv")
 
 
     ## Define constants
@@ -216,7 +217,11 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     # hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
     # hourly_emission_factors = dp.build_monthly_emission_factors(strom_mix)
     hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
-
+    print("HEF")
+    print(hourly_emission_factors)
+    hourly_emission_factors = hourly_emission_factors*grid_decarbonization_factors.mean()
+    print("HEF_decarb")
+    print(hourly_emission_factors)
     office_list = [Office_1X, Office_2X, Office_32]
 
 
@@ -332,7 +337,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     annual_operational_emissions = operational_emissions.sum(axis=1)
     normalized_annual_operational_emissions = annual_operational_emissions/(room_width*room_depth)
 
-    total_emissions = annual_embodied_emissions+annual_operational_emissions
     normalized_total_emissions = normalized_annual_embodied_emissions+normalized_annual_operational_emissions
 
     annual_heating_demand = sum(heating_demand)/(room_depth*room_width)
@@ -364,7 +368,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
 
-    return normalized_total_emissions, annual_operational_emissions, annual_embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area
+    return normalized_total_emissions, normalized_annual_operational_emissions, normalized_annual_embodied_emissions,\
+           u_windows, u_walls, thermal_capacitance_per_floor_area
 
 
 
