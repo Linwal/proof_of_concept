@@ -60,7 +60,7 @@ thermal_capacitance_per_floor_area = dp.extract_wall_data(wall_data_path, name=w
                                                               area=external_envelope_area-window_area)/\
                                          (room_width*room_depth)*1000  #factor 1000 coming from the conversion of kJ to J
 
-print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area)
+# print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area)
 
 
 
@@ -75,7 +75,11 @@ grid_decarbonization_until = [2050, 2060, 2080]  # Choose from 2050, 2060 and 20
 grid_decarbonization_types_l = ['linear', 'exponential', 'quadratic', 'constant'] # Choose from 'linear', exponential, quadratic, constant
 grid_decarbonization_path = r'C:\Users\walkerl\Documents\code\proof_of_concept\data\future_decarbonization\Decarbonization sceanrios.xlsx'
 from_year = 2020
-to_year = 2080
+to_year = from_year+lifetime
+
+# Occupancy Schedule
+# Needs to be added here
+
 
 # PV technology development
 
@@ -99,7 +103,7 @@ to_year = 2080
 
 
 ### going through random scenarios
-number_of_simulations = 10
+number_of_simulations = 20
 
 emission_array = np.empty((number_of_simulations,3))
 
@@ -114,23 +118,27 @@ for i in range(number_of_simulations):
 
     weatherfile_path = os.path.join(weather_file_folder,weather_file)
 
+    decarb_grid_factors = dp.extract_decarbonization_factor(grid_decarbonization_path, grid_decarbonization_year,
+                                                            grid_decarbonization_type, from_year, to_year)
+
     total_emissions, operational_emissions, embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area\
             = definition.run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
-                                         thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl, ventilation_efficiency,
-                                         max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area,
-                                         pv_area, pv_efficiency, pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path)
+                                        thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl,
+                                        ventilation_efficiency, max_heating_energy_per_floor_area,
+                                        max_cooling_energy_per_floor_area, pv_area, pv_efficiency, pv_tilt, pv_azimuth,
+                                        lifetime, strom_mix, weatherfile_path, decarb_grid_factors)
 
     emission_array[i,] = total_emissions
 
-    print(emission_array)
+    # print(emission_array)
 
 
 
 
 plt.boxplot(emission_array)
 plt.title( "Normalized Emissions with different climate scenarios")
-plt.ylabel("Emissions")
-plt.legend(["pure electric", "ASHP", "GSHP"])
+plt.ylabel("Annual Emissions CO2eq/m2")
+plt.legend(["1 pure electric", "2 ASHP", "3 GSHP"])
 # plt.savefig(r"C:/Users/walkerl/polybox/phd/proof_of_concept/plots/19_10_01/low_area/" + str(xlabel) + ".png")
 plt.show()
 
