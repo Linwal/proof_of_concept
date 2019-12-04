@@ -117,7 +117,7 @@ grid_decarbonization_type = random.choice(grid_decarbonization_types_l)
 
 
 ### going through random scenarios
-number_of_simulations = 3
+number_of_simulations = 10
 
 total_emission_array = np.empty((number_of_simulations,3))
 operational_emission_array = np.empty((number_of_simulations,3))
@@ -152,63 +152,46 @@ for i in range(number_of_simulations):
 
 ############  Ploting results ###################
 
-results = np.concatenate([total_emission_array, operational_emission_array, embodied_emission_array]) ## hier weitermachen
-print(results)
+###### line plots ######
 
-fig, ax1 = plt.subplots(figsize=(6,6))
-fig.canvas.set_window_title('A Boxplot Example')
-fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
-bp = ax1.boxplot(results, notch=0, sym='+', vert=1, whis=1.5)
-
-plt.setp(bp['boxes'], color='black')
-plt.setp(bp['whiskers'], color='black')
-plt.setp(bp['fliers'], color='red', marker='+')
-ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',
-               alpha=0.5)
-plt.show()
-
-box_colors = ['darkkhaki', 'royalblue']
-num_boxes = len(results)
-medians = np.empty(num_boxes)
-for i in range(num_boxes):
-    box = bp['boxes'][i]
-    boxX = []
-    boxY = []
-    for j in range(5):
-        boxX.append(box.get_xdata()[j])
-        boxY.append(box.get_ydata()[j])
-    box_coords = np.column_stack([boxX, boxY])
-    # Alternate between Dark Khaki and Royal Blue
-    ax1.add_patch(Polygon(box_coords, facecolor=box_colors[i % 2]))
-    # Now draw the median lines back over what we just filled in
-    med = bp['medians'][i]
-    medianX = []
-    medianY = []
-    for j in range(2):
-        medianX.append(med.get_xdata()[j])
-        medianY.append(med.get_ydata()[j])
-        ax1.plot(medianX, medianY, 'k')
-    medians[i] = medianY[0]
-    # Finally, overplot the sample averages, with horizontal alignment
-    # in the center of each box
-
+plt.plot([1,2,3], total_emission_array.T)
+plt.title("Normalized annual emissions per Scenario")
+plt.ylabel("normalized emissions kgCO2eq/(m2a)")
+tix = ['electric', 'ashp', 'gshp']
+plt.xticks([1,2,3], tix)
 
 plt.show()
 
-plt.boxplot(total_emission_array)
-plt.boxplot(operational_emission_array)
-plt.boxplot(embodied_emission_array, patch_artist=True)
-plt.title( "Normalized Emissions with different climate scenarios")
-plt.ylabel("Annual Emissions CO2eq/m2")
-plt.legend(["1 pure electric", "2 ASHP", "3 GSHP"])
-# plt.savefig(r"C:/Users/walkerl/polybox/phd/proof_of_concept/plots/19_10_01/low_area/" + str(xlabel) + ".png")
-plt.show()
+
+###### Box plots ######
+
+# results = np.concatenate([total_emission_array, operational_emission_array, embodied_emission_array]) ## hier weitermachen
+# print(results)
+#
+# fig, ax1 = plt.subplots(figsize=(6,6))
+# fig.canvas.set_window_title('A Boxplot Example')
+# fig.subplots_adjust(left=0.075, right=0.95, top=0.9, bottom=0.25)
+# bp = ax1.boxplot(results, notch=0, sym='+', vert=1, whis=1.5)
+#
+# plt.setp(bp['boxes'], color='black')
+# plt.setp(bp['whiskers'], color='black')
+# plt.setp(bp['fliers'], color='red', marker='+')
+# ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',
+#                alpha=0.5)
+#
+# plt.boxplot(total_emission_array)
+## plt.boxplot(operational_emission_array)
+## plt.boxplot(embodied_emission_array, patch_artist=True)
+# plt.title( "Normalized Emissions with different climate scenarios")
+# plt.ylabel("Annual Emissions CO2eq/m2")
+# plt.legend(["1 pure electric", "2 ASHP", "3 GSHP"])
+## plt.savefig(r"C:/Users/walkerl/polybox/phd/proof_of_concept/plots/19_10_01/low_area/" + str(xlabel) + ".png")
+# plt.show()
 
 data = pd.DataFrame(data = (window_area, external_envelope_area, room_depth, room_width, room_height, u_windows, u_walls,
                     ach_vent,ach_infl, ventilation_efficiency, max_cooling_energy_per_floor_area,
                     max_heating_energy_per_floor_area, pv_area, pv_efficiency, pv_tilt, pv_azimuth, lifetime, strom_mix,
                     thermal_capacitance_per_floor_area))
-# print(data)
 
 
 
