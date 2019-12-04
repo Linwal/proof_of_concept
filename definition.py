@@ -54,42 +54,20 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     #            Rome, Kiruna, Ostersund, LongBeach_LA, DesMoines, Chicago]
 
     # Loc = Zurich
+
     Loc = Location(epwfile_path=weatherfile_path)
 
 
 
-
-    # window_area = 6.0
-    # external_envelope_area=15.0  # m2 (south oriented)
-    # room_depth=7.0  # m
-    # room_width=5.0  # m
-    # room_height=3.0  # m
     lighting_load=11.7  # [W/m2] (source?)
     lighting_control = 300.0  # lux threshold at which the lights turn on.
     lighting_utilisation_factor=0.45
     lighting_maintenance_factor=0.9
-    # u_walls = dp.extract_wall_data(wall_data_path, name=wall_name, type="U-value")
-    # print("U value: " + str(u_walls))
-    # u_windows = 1.0  # W/m2K
-    # ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
-    # ach_infl= 0.4 # Air changes per hour through infiltration [Air Changes Per Hour]
-    # ventilation_efficiency=0.6
-    # thermal_capacitance_per_floor_area = dp.extract_wall_data(wall_data_path, name=wall_name,
-    #                                                           type ="Thermal capacitance [kJ/m2K]",
-    #                                                           area=external_envelope_area-window_area)/\
-    #                                      (room_width*room_depth)*1000  #factor 1000 coming from the conversion of kJ to J
-    #
-    # print("Thermal capacitance per floor area: ", thermal_capacitance_per_floor_area)
-    # thermal_capacitance_per_floor_area = 165000  # Thermal capacitance of the room per floor area [J/m2K]
+
 
     t_set_heating = 20.0
     t_set_cooling = 26.0
-    # max_cooling_energy_per_floor_area=-np.inf
-    # max_heating_energy_per_floor_area=np.inf
-    # pv_area = 1000 #m2
-    # pv_efficiency = 0.18
-    # pv_tilt = 45
-    # pv_azimuth = 0
+
 
     use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
 
@@ -111,8 +89,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     thermal_capacitance_per_floor_area = thermal_capacitance_per_floor_area,
                     t_set_heating = t_set_heating,
                     t_set_cooling = t_set_cooling,
-                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area,
-                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area,
+                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area[0],
+                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area[0],
                     heating_supply_system=supply_system.ElectricHeating,
                     cooling_supply_system=supply_system.DirectCooler, # What can we choose here for purely electric case?
                     heating_emission_system=emission_system.FloorHeating,
@@ -135,8 +113,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     thermal_capacitance_per_floor_area = thermal_capacitance_per_floor_area,
                     t_set_heating = t_set_heating,
                     t_set_cooling = t_set_cooling,
-                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area,
-                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area,
+                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area[1],
+                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area[1],
                     heating_supply_system=supply_system.HeatPumpAir,
                     cooling_supply_system=supply_system.HeatPumpAir,
                     heating_emission_system=emission_system.FloorHeating,
@@ -159,8 +137,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     thermal_capacitance_per_floor_area = thermal_capacitance_per_floor_area,
                     t_set_heating = t_set_heating,
                     t_set_cooling = t_set_cooling,
-                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area,
-                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area,
+                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area[2],
+                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area[2],
                     heating_supply_system=supply_system.HeatPumpWater,
                     cooling_supply_system=supply_system.HeatPumpWater,
                     heating_emission_system=emission_system.FloorHeating,
@@ -173,7 +151,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
 
-    SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90, glass_solar_transmittance=0.5,
+    SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90.0, glass_solar_transmittance=0.5,
                          glass_light_transmittance=0.5, area =window_area)
 
     ## Define PV to this building
@@ -217,11 +195,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     # hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
     # hourly_emission_factors = dp.build_monthly_emission_factors(strom_mix)
     hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
-    print("HEF")
-    print(hourly_emission_factors)
     hourly_emission_factors = hourly_emission_factors*grid_decarbonization_factors.mean()
-    print("HEF_decarb")
-    print(hourly_emission_factors)
     office_list = [Office_1X, Office_2X, Office_32]
 
 
@@ -229,6 +203,10 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     pv_yields_list = []
     heating_demands_list = []
     cooling_demands_list = []
+    indoor_temperature_list = []
+    heat_emission_list = []
+    cold_emission_list = []
+
 
     for Office in office_list:
         electricity_demand = np.empty(8760)
@@ -236,6 +214,9 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
         heating_demand = []
         cooling_demand = []
         solar_gains = []
+        indoor_temperature = []
+        emission_heat_demand = []
+        emission_cold_demand = []
 
         for hour in range(8760):
 
@@ -278,12 +259,30 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
             solar_gains.append(SouthWindow.solar_gains)
             electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity
             solar_yield[hour]=RoofPV.solar_yield
+            emission_heat_demand.append(Office.heating_demand)
+            emission_cold_demand.append(Office.cooling_demand)
+            indoor_temperature.append(Office.t_air)
 
+        plt.plot(indoor_temperature)
+        plt.axhline(20)
+        plt.axhline(26)
+        plt.show()
         electricity_demand = electricity_demand + electric_appliances
-        heating_demands_list.append(heating_demand)
-        cooling_demands_list.append(cooling_demand)
+        heating_demands_list.append(heating_demand)  # This is the electricity needed for heating with the respective system
+        heat_emission_list.append(emission_heat_demand)  # This is the actual heat emitted
+        cooling_demands_list.append(cooling_demand)  # This is the electricity needed for cooling with the respective system
+        cold_emission_list.append(emission_cold_demand) # This is the actual heat emitted
         electricity_demands_list.append(electricity_demand) # in Wh
         pv_yields_list.append(solar_yield) #in Wh
+        indoor_temperature_list.append(indoor_temperature)
+    floor_area = room_width * room_depth
+    max_required_heating_per_floor_area = [max(heat_emission_list[0])/floor_area,
+                                           max(heat_emission_list[1])/floor_area,
+                                           max(heat_emission_list[2])/floor_area]  # W/m2
+    max_required_cooling_per_floor_area = [min(cold_emission_list[0])/floor_area,
+                                           min(cold_emission_list[1])/floor_area,
+                                           min(cold_emission_list[2])/floor_area]  # W/m2
+
 
     net_electricity_demands_list = np.subtract(electricity_demands_list, pv_yields_list)
 
@@ -312,7 +311,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
     # direct electrical
     el_underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq [wird als zusatz genommen weil mit heater alleine ja noch nicht geheizt]
-    embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[1],97.5)/1000. +el_underfloor_heating_embodied + pv_embodied * embodied_pv_ratio[0] #_embodied emissions of the electrical heating system
+    embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[0],97.5)/1000. +el_underfloor_heating_embodied + pv_embodied * embodied_pv_ratio[0] #_embodied emissions of the electrical heating system
 
     # ASHP
     ashp_power = np.percentile(heating_demands_list[1],97.5)/1000. #kW
@@ -341,7 +340,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
     annual_heating_demand = sum(heating_demand)/(room_depth*room_width)
     annual_cooling_demand = sum(cooling_demand)/(room_depth*room_width)
-    print(normalized_total_emissions)
     #
     # #
     # fig, ax1 = plt.subplots()
@@ -369,7 +367,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     return normalized_total_emissions, normalized_annual_operational_emissions, normalized_annual_embodied_emissions,\
-           u_windows, u_walls, thermal_capacitance_per_floor_area
+           u_windows, u_walls, thermal_capacitance_per_floor_area, max_required_heating_per_floor_area,\
+           max_required_cooling_per_floor_area, indoor_temperature_list
 
 
 
@@ -384,6 +383,35 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     # plt.plot(range(8760), net_electricity_demands_list[2], label="GSHP", c="lightgreen", ls='--',lw="0.7", marker=".", ms=0.7)
     # plt.legend()
     # plt.show()
+
+def comfort_assessment(indoor_temperature_time_series, comfort_range=[19.0, 25.0], discomfort_type="integrated"):
+    """
+    :param indoor_temperature_time_series: np.array or list of hourly indoor temperature values
+    :param comfort_range: list or numpy array with lower and upper limit of comfort range for room temperature
+    :return: Number of hours where Temperature is outside comfort zone
+    """
+
+    time_series = np.array(indoor_temperature_time_series)
+    comfort_range[0]-=0.01 # This will eliminate stupid 19.9999999995 to be too cold for 20
+    comfort_range[1]+=0.01
+    hours_of_discomfort = []
+    degree_hours_of_discomfort = []
+    for j in range(time_series.shape[0]):
+        low_temp = time_series[j][time_series[j]<comfort_range[0]]
+        high_temp = time_series[j][time_series[j]>comfort_range[1]]
+
+        # hours of discomfort
+        if discomfort_type == "hod":
+            hours_of_discomfort.append(len(low_temp) + len(high_temp))
+
+
+        elif discomfort_type == "integrated":
+            degree_hours_of_discomfort.append(sum(comfort_range[0] - low_temp) + sum(high_temp - comfort_range[1]))
+
+    if discomfort_type == "hod":
+        return hours_of_discomfort
+    elif discomfort_type == "integrated":
+        return degree_hours_of_discomfort
 
 if __name__ == '__main__':
     pass

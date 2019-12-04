@@ -17,18 +17,18 @@ dirname = os.path.dirname(__file__)
 wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
 
 
-window_area = 10.0
+window_area = 5.0
 ## Add window g-value here!
 external_envelope_area=15.0  # m2 (south oriented)
-room_depth=7.0  # m
-room_width=5.0  # m
-room_height=3.0  # m
+room_depth= 7.0  # m
+room_width= 5.0  # m
+room_height= 3.0  # m
 u_windows = 1.0  # W/m2K
 ach_vent= 2.0  # Air changes per hour through ventilation [Air Changes Per Hour]
 ach_infl= 1.5 # Air changes per hour through infiltration [Air Changes Per Hour]
 ventilation_efficiency=0.4
-max_cooling_energy_per_floor_area=-np.inf
-max_heating_energy_per_floor_area=np.inf
+max_cooling_energy_per_floor_area= [-np.inf, -np.inf, -np.inf]  # W/m2
+max_heating_energy_per_floor_area= [np.inf, np.inf, np.inf]  # W/m2
 pv_area = 2.5 #m2
 pv_efficiency = 0.18
 pv_tilt = 45
@@ -116,12 +116,36 @@ grid_decarbonization_type = random.choice(grid_decarbonization_types_l)
 #             print(counter)
 
 
-### going through random scenarios
-number_of_simulations = 10
+########### random reference scenario  ############
+weather_file = random.choice(weather_scenarios)
+grid_decarbonization_year = random.choice(grid_decarbonization_until)
+grid_decarbonization_type = random.choice(grid_decarbonization_types_l)
+weatherfile_path = os.path.join(weather_file_folder, weather_file)
+decarb_grid_factors = dp.extract_decarbonization_factor(grid_decarbonization_path, grid_decarbonization_year,
+                                                            grid_decarbonization_type, from_year, to_year)
 
+print("Reference Scenario")
+print(weather_file, grid_decarbonization_year, grid_decarbonization_type)
+result_values = definition.run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
+                              thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl,
+                              ventilation_efficiency, max_heating_energy_per_floor_area,
+                              max_cooling_energy_per_floor_area, pv_area, pv_efficiency, pv_tilt, pv_azimuth,
+                              lifetime, strom_mix, weatherfile_path, decarb_grid_factors)
+
+required_heating_power_per_floor_area = result_values[6]
+required_cooling_power_per_floor_area = result_values[7]
+
+max_cooling_energy_per_floor_area = required_cooling_power_per_floor_area  # W/m2
+max_heating_energy_per_floor_area = required_heating_power_per_floor_area  # W/m2
+
+
+########### going through random scenarios   ###########
+number_of_simulations = 5
 total_emission_array = np.empty((number_of_simulations,3))
 operational_emission_array = np.empty((number_of_simulations,3))
 embodied_emission_array = np.empty((number_of_simulations,3))
+discomfort_array = np.empty((number_of_simulations,3))
+
 
 for i in range(number_of_simulations):
     weather_file = random.choice(weather_scenarios)
@@ -137,18 +161,25 @@ for i in range(number_of_simulations):
     decarb_grid_factors = dp.extract_decarbonization_factor(grid_decarbonization_path, grid_decarbonization_year,
                                                             grid_decarbonization_type, from_year, to_year)
 
-    total_emissions, operational_emissions, embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area\
-            = definition.run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
+    total_emissions, operational_emissions, embodied_emissions, u_windows, u_walls, thermal_capacitance_per_floor_area,\
+    required_heating_energy_per_floor_area, required_cooling_energy_per_floor_area, indoor_temperature_list\
+        = definition.run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
                                         thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl,
                                         ventilation_efficiency, max_heating_energy_per_floor_area,
                                         max_cooling_energy_per_floor_area, pv_area, pv_efficiency, pv_tilt, pv_azimuth,
                                         lifetime, strom_mix, weatherfile_path, decarb_grid_factors)
 
+    print(indoor_temperature_list)
+    plt.plot(indoor_temperature_list)
+    plt.title("indoor_temperature list")
+    plt.show()
     total_emission_array[i,] = total_emissions
     operational_emission_array[i,] = operational_emissions
     embodied_emission_array[i,] = embodied_emissions
     # print(emission_array)
 
+    print("Discomfort hours")
+    print(definition.comfort_assessment(indoor_temperature_list, [20,26], 'hod')) ## make sure to have these values lower/higher than the heating set point
 
 ############  Ploting results ###################
 
