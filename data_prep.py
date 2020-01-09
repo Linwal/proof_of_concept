@@ -4,6 +4,8 @@ import os
 
 
 
+def embodied_emissions_kbob(asdf):
+    pass
 
 
 def electric_appliances_sia(energy_reference_area, type=1, value="standard"):
@@ -28,7 +30,7 @@ def electric_appliances_sia(energy_reference_area, type=1, value="standard"):
     else:
         print("No demand schedule for electrical appliances has been defined for this case.")
 
-    return demand_profile #Wh
+    return demand_profile * energy_reference_area #Wh
 
 
 def build_yearly_emission_factors(export_assumption="c"):
