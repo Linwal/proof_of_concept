@@ -29,12 +29,15 @@ ach_infl= 1.5 # Air changes per hour through infiltration [Air Changes Per Hour]
 ventilation_efficiency=0.4
 max_cooling_energy_per_floor_area= [-np.inf, -np.inf, -np.inf]  # W/m2
 max_heating_energy_per_floor_area= [np.inf, np.inf, np.inf]  # W/m2
+heating_temp = 20.0  # The room will be heated to 20.0 deg C
+cooling_temp = 26.0  # The room will be cooled to 26.0 deg C
 pv_area = 2.5 #m2
 pv_efficiency = 0.18
 pv_tilt = 45
 pv_azimuth = 0
 lifetime = 30.0 ## Here this is only the lifetime of the building systems, not the building.
 strom_mix = "d"
+
 
 year_of_construction = 2020
 
@@ -130,7 +133,8 @@ result_values = definition.run_simulation(external_envelope_area, window_area, r
                               thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl,
                               ventilation_efficiency, max_heating_energy_per_floor_area,
                               max_cooling_energy_per_floor_area, pv_area, pv_efficiency, pv_tilt, pv_azimuth,
-                              lifetime, strom_mix, weatherfile_path, decarb_grid_factors)
+                              lifetime, strom_mix, weatherfile_path, decarb_grid_factors, heating_temp,
+                                    cooling_temp)
 
 required_heating_power_per_floor_area = result_values[6]
 required_cooling_power_per_floor_area = result_values[7]
@@ -167,7 +171,8 @@ for i in range(number_of_simulations):
                                         thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl,
                                         ventilation_efficiency, max_heating_energy_per_floor_area,
                                         max_cooling_energy_per_floor_area, pv_area, pv_efficiency, pv_tilt, pv_azimuth,
-                                        lifetime, strom_mix, weatherfile_path, decarb_grid_factors)
+                                        lifetime, strom_mix, weatherfile_path, decarb_grid_factors, heating_temp,
+                                    cooling_temp)
 
     print(indoor_temperature_list)
     plt.plot(indoor_temperature_list)

@@ -16,58 +16,17 @@ from radiation import PhotovoltaicSurface
 def run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
                    thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl, ventilation_efficiency,
                    max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area, pv_area, pv_efficiency,
-                   pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path, grid_decarbonization_factors):
+                   pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path, grid_decarbonization_factors,
+                   t_set_heating, t_set_cooling):
 
-
-
-    # dirname = os.path.dirname(__file__)
-    # wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
-
-    # Zurich = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw")
-    # Recife = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\BRA_Recife.828990_IWEC.epw")
-    # SaoPaolo = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\BRA_Sao.Paulo-Congonhas.837800_SWERA.epw")
-    # Vancouver = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\CAN_BC_Vancouver.718920_CWEC.epw")
-    # PuntaArenas = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\CHL_Punta.Arenas.859340_IWEC.epw")
-    # Stuttgart = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DEU_Stuttgart.107380_IWEC.epw")
-    # Copenhagen = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DNK_Copenhagen.061800_IWEC.epw")
-    # Algier = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DZA_Algiers.603900_IWEC.epw")
-    # Barcelona = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ESP_Barcelona.081810_IWEC.epw")
-    # London = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\GBR_London.Gatwick.037760_IWEC.epw")
-    # Milano = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ITA_Milano-Linate.160800_IGDG.epw")
-    # Rome =Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ITA_Roma-Ciampino.162390_IGDG.epw")
-    # Kiruna = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\SWE_Kiruna.020440_IWEC.epw")
-    # Ostersund = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\SWE_Ostersund.Froson.022260_IWEC.epw")
-    # LongBeach_LA = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_CA_Long.Beach-Daugherty.Field.722970_TMY3.epw")
-    # DesMoines = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IA_Des.Moines.Intl.AP.725460_TMY3.epw")
-    # Chicago = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IL_Chicago-OHare.Intl.AP.725300_TMY3.epw")
-
-    # wall_name = "Betonwand, Wärmedämmung mit Lattenrost, Verkleidung"
-    # wall_name = "Holzblockwand, Aussenwärmedämmung, Verkleidung"
-    # wall_name = "Sichtbetonwand, Aussenwärmedämmung verputzt"
-    # wall_name = "Sichtbacksteinmauerwerk, Aussenwärmedämmung verputzt"
-
-
-
-
-
-    # LocList = [Zurich, Recife, SaoPaolo, Vancouver, PuntaArenas, Stuttgart, Copenhagen, Algier, Barcelona, London, Milano,
-    #            Rome, Kiruna, Ostersund, LongBeach_LA, DesMoines, Chicago]
-
-    # Loc = Zurich
 
     Loc = Location(epwfile_path=weatherfile_path)
 
-
-
+    ## So far the lighting load is still hard coded because it is not looked at.
     lighting_load=11.7  # [W/m2] (source?)
     lighting_control = 300.0  # lux threshold at which the lights turn on.
     lighting_utilisation_factor=0.45
     lighting_maintenance_factor=0.9
-
-
-    t_set_heating = 20.0
-    t_set_cooling = 26.0
-
 
     use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
 
@@ -145,11 +104,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     cooling_emission_system=emission_system.FloorHeating,)
 
 
-    ### emission factors according to empa_Alice Chevrier Semester Project in g/Wh
-
-    # aproximated values from the graph
-
-
 
     SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90.0, glass_solar_transmittance=0.5,
                          glass_light_transmittance=0.5, area =window_area)
@@ -179,9 +133,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
     coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
 
-    #standard on GWP100, 0.18m insulation
-    # coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area-window_area)
-
 
     #electricity demand from appliances
 
@@ -189,7 +140,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     #Starting temperature of the builidng:
-    t_m_prev=20.0
+    t_m_prev=20.0 # This is only for the very first step in therefore is hard coded.
 
 
     # hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
@@ -263,10 +214,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
             emission_cold_demand.append(Office.cooling_demand)
             indoor_temperature.append(Office.t_air)
 
-        plt.plot(indoor_temperature)
-        plt.axhline(20)
-        plt.axhline(26)
-        plt.show()
+
         electricity_demand = electricity_demand + electric_appliances
         heating_demands_list.append(heating_demand)  # This is the electricity needed for heating with the respective system
         heat_emission_list.append(emission_heat_demand)  # This is the actual heat emitted
@@ -338,32 +286,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
     normalized_total_emissions = normalized_annual_embodied_emissions+normalized_annual_operational_emissions
 
-    annual_heating_demand = sum(heating_demand)/(room_depth*room_width)
-    annual_cooling_demand = sum(cooling_demand)/(room_depth*room_width)
-    #
-    # #
-    # fig, ax1 = plt.subplots()
-    # ax1.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue", label="embodied systems")
-    # ax1.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
-    #              color="blue", label="grid allocated")
-    # ax1.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
-    #                        pv_embodied*embodied_pv_ratio[1]/lifetime/(room_depth*room_width),
-    #                        pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y",
-    #         label="PV allocated")
-    #
-    # ax1.set_title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
-    # ax1.set_ylabel("kgCO2eq/(a*m2)")
-    # plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-    # ax2 = ax1.twinx()
-    # ax2.axhline(annual_heating_demand/1000, color="red", label="heating demand")
-    # ax2.axhline(annual_cooling_demand/1000, color= "blue", label="cooling demand")
-    # ax2.set_ylabel("kWh/(a*m2)")
-    # ax2.set_ylim(0)
-    # plt.figlegend(loc="center right", bbox_to_anchor=(0.88,0.67))
-    # plt.show()
-
-
-
 
 
     return normalized_total_emissions, normalized_annual_operational_emissions, normalized_annual_embodied_emissions,\
@@ -373,16 +295,6 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
 
-    #Visualize hourly values
-    # plt.plot(range(8760), operational_emissions[0], label="direct_power", c="red", ls='--', lw="0.7", marker=".", ms=0.7 )
-    # plt.plot(range(8760), operational_emissions[1], label="ASHP", c="blue", ls='--', lw="0.7", marker=".", ms=0.7)
-    # plt.plot(range(8760), operational_emissions[2], label="GSHP", c="green", ls='--', lw="0.7", marker=".", ms=0.7)
-    #
-    # plt.plot(range(8760), net_electricity_demands_list[0], label="direct_power", c="lightcoral", ls='--', lw="0.7", marker=".", ms=0.7)
-    # plt.plot(range(8760), net_electricity_demands_list[1], label="ASHP", c="lightblue", ls='--', lw="0.7",marker=".", ms=0.7)
-    # plt.plot(range(8760), net_electricity_demands_list[2], label="GSHP", c="lightgreen", ls='--',lw="0.7", marker=".", ms=0.7)
-    # plt.legend()
-    # plt.show()
 
 def comfort_assessment(indoor_temperature_time_series, comfort_range=[19.0, 25.0], discomfort_type="integrated"):
     """
