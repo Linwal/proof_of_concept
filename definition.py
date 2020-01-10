@@ -111,7 +111,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     ## Define PV to this building
 
     RoofPV = PhotovoltaicSurface(azimuth_tilt=pv_azimuth, alititude_tilt = pv_tilt, stc_efficiency=pv_efficiency,
-                         performance_ratio=0.8, area = pv_area)
+                         performance_ratio=0.8, area = pv_area)  # Performance ratio is still hard coded.
 
 
     ## Define occupancy
@@ -122,16 +122,15 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
     gain_per_person = 100 # W per sqm
     appliance_gains= 14 #W per sqm
-    max_occupancy=4.0
+    max_occupancy=4.0  # What are the dimensions of this?
 
     ## Define embodied emissions: # In a later stage this could be included in the RC model "supply_system.py file"
-    coeq_gshp = 272.5 #kg/kW [KBOB 2016]
-    coeq_borehole = 28.1 #kg/m[KBOB 2016]
-    coeq_ashp = 363.75 #kg/kW [KBOB 2016]
-    coeq_underfloor_heating = 5.06 #kg/m2 [KBOB]
-    coeq_pv = 2080 # kg/kWp [KBOB 2016]
-
-    coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
+    coeq_gshp = dp.embodied_emissions_heat_generation_kbob_per_kW("gshp")  # kgCO2/kW ## zusätzlich automatisieren
+    coeq_borehole = dp.embodied_emissions_borehole_per_m() #kg/m
+    coeq_ashp = dp.embodied_emissions_heat_generation_kbob_per_kW("ashp")  # kgCO2/kW ## zusätzlich automatisieren
+    coeq_underfloor_heating = dp.embodied_emissions_heat_emission_system_per_m2("underfloor heating") #kg/m2
+    coeq_pv = dp.embodied_emissions_pv_per_kW()  # kg/kWp
+    coeq_el_heater = dp.embodied_emissions_heat_generation_kbob_per_kW("electric heater")  #kg/kW
 
 
     #electricity demand from appliances
@@ -219,7 +218,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
         heating_demands_list.append(heating_demand)  # This is the electricity needed for heating with the respective system
         heat_emission_list.append(emission_heat_demand)  # This is the actual heat emitted
         cooling_demands_list.append(cooling_demand)  # This is the electricity needed for cooling with the respective system
-        cold_emission_list.append(emission_cold_demand) # This is the actual heat emitted
+        cold_emission_list.append(emission_cold_demand) # This is the actual col "emitted"
         electricity_demands_list.append(electricity_demand) # in Wh
         pv_yields_list.append(solar_yield) #in Wh
         indoor_temperature_list.append(indoor_temperature)
@@ -258,8 +257,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     # direct electrical
-    el_underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq [wird als zusatz genommen weil mit heater alleine ja noch nicht geheizt]
-    embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[0],97.5)/1000. +el_underfloor_heating_embodied + pv_embodied * embodied_pv_ratio[0] #_embodied emissions of the electrical heating system
+    embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[0],97.5)/1000. + pv_embodied * embodied_pv_ratio[0] #_embodied emissions of the electrical heating system
 
     # ASHP
     ashp_power = np.percentile(heating_demands_list[1],97.5)/1000. #kW
