@@ -98,7 +98,7 @@ cooling_temp = 26.0
 # data_list = [0,10,20,30,40,50,60,70,80,90] # PV tilt
 # data_list = [-90, -70, -50, -30, -10, 0, 10, 30, 50, 70, 90]
 # data_list = [0.1, 0.2, 0.4, 0.5, 0.6, 0.8, 0.9]
-data_list = [0.1]
+data_list = [0.1, 0.2, 0.5, 0.8]
 
 emission_array = np.empty((len(data_list),3))
 

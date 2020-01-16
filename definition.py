@@ -28,6 +28,9 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     lighting_utilisation_factor=0.45
     lighting_maintenance_factor=0.9
 
+    annual_dhw_p_person = 36400  # Wh/(p*a) SIA2024 für MFH wären es 582000 Wh/(p*a) aus hard code rausnehmen
+    dhw_supply_temperature = 60  # degC
+
     use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
 
 
@@ -53,7 +56,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     heating_supply_system=supply_system.ElectricHeating,
                     cooling_supply_system=supply_system.DirectCooler, # What can we choose here for purely electric case?
                     heating_emission_system=emission_system.FloorHeating,
-                    cooling_emission_system=emission_system.AirConditioning,)
+                    cooling_emission_system=emission_system.AirConditioning,
+                    dhw_supply_temperature=dhw_supply_temperature,)
 
     Office_2X = Building(window_area=window_area,
                     external_envelope_area=external_envelope_area,
@@ -77,7 +81,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     heating_supply_system=supply_system.HeatPumpAir,
                     cooling_supply_system=supply_system.HeatPumpAir,
                     heating_emission_system=emission_system.FloorHeating,
-                    cooling_emission_system=emission_system.FloorHeating,)
+                    cooling_emission_system=emission_system.FloorHeating,
+                    dhw_supply_temperature=dhw_supply_temperature,)
 
     Office_32 = Building(window_area=window_area,
                     external_envelope_area=external_envelope_area,
@@ -101,7 +106,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     heating_supply_system=supply_system.HeatPumpWater,
                     cooling_supply_system=supply_system.HeatPumpWater,
                     heating_emission_system=emission_system.FloorHeating,
-                    cooling_emission_system=emission_system.FloorHeating,)
+                    cooling_emission_system=emission_system.FloorHeating,
+                    dhw_supply_temperature=dhw_supply_temperature, )
 
 
 
@@ -115,14 +121,14 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     ## Define occupancy
-    occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\schedules_el_SINGLE_RES.csv")
+    occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\occupancy_office.csv")
 
 
     ## Define constants
 
     gain_per_person = 100 # W per sqm
     appliance_gains= 14 #W per sqm
-    max_occupancy=4.0  # What are the dimensions of this?
+    max_occupancy=2.5  # number of occupants (could be simplified by using area per person values)
 
     ## Define embodied emissions: # In a later stage this could be included in the RC model "supply_system.py file"
     coeq_gshp = dp.embodied_emissions_heat_generation_kbob_per_kW("gshp")  # kgCO2/kW ## zusätzlich automatisieren
@@ -175,6 +181,9 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
             #Gains from occupancy and appliances
             internal_gains = occupancy*gain_per_person + appliance_gains*Office.floor_area
 
+            # Domestic hot water schedule
+            dhw_demand = annual_dhw_p_person/ occupancyProfile['People'].sum() * occupancy  # Wh
+
             #Extract the outdoor temperature in Zurich for that hour
             t_out = Loc.weather_data['drybulb_C'][hour]
 
@@ -194,7 +203,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
             Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,t_out=t_out,
-                                         t_m_prev=t_m_prev)
+                                         t_m_prev=t_m_prev, dhw_demand=dhw_demand)
 
             Office.solve_building_lighting(illuminance=SouthWindow.transmitted_illuminance, occupancy=occupancy)
 
@@ -207,7 +216,7 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
             heating_demand.append(Office.heating_sys_electricity)
             cooling_demand.append(Office.cooling_sys_electricity)
             solar_gains.append(SouthWindow.solar_gains)
-            electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity
+            electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity + Office.dhw_sys_electricity
             solar_yield[hour]=RoofPV.solar_yield
             emission_heat_demand.append(Office.heating_demand)
             emission_cold_demand.append(Office.cooling_demand)
