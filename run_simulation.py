@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 
 
-
+occupancy_path = r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\occupancy_office.csv"
 
 # wall_name = "Betonwand, Wärmedämmung mit Lattenrost, Verkleidung"
 wall_name = "Holzblockwand, Aussenwärmedämmung, Verkleidung"
