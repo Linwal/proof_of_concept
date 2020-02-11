@@ -11,7 +11,218 @@ from radiation import Window
 from radiation import PhotovoltaicSurface
 
 
-def run_rc_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
+
+class Sim_Building(object):
+    def __init__(self,
+                 gebaeudekategorie_sia,
+                 regelung,
+                 windows,
+                 walls,
+                 roof,
+                 floor,
+                 energy_reference_area,
+                 heat_recovery_nutzungsgrad,
+                 infiltration_volume_flow,
+                 thermal_storage_capacity_per_floor_area,
+                 korrekturfaktor_luftungs_eff_f_v,
+                 height_above_sea
+                 ):
+
+        ### Similar to SIA some are unecessary.
+        self.gebaeudekategorie_sia = gebaeudekategorie_sia
+        self.regelung = regelung
+        self.windows = windows  # np.array of windows with |area|u-value|g-value|orientation|shading_f1|shading_f2|
+        self.walls = walls  # np.array of walls with |area|u-value| so far, b-values are not possible
+        self.roof = roof  # np.array of roofs with |area|u-value|
+        self.floor = floor  # np.array of floowrs with |area|u-value|b-value|
+        self.energy_reference_area = energy_reference_area  # One value, float
+        self.anlagennutzungsgrad_wrg = heat_recovery_nutzungsgrad  # One value, float
+        self.q_inf = infiltration_volume_flow
+        self.warmespeicherfahigkeit_pro_ebf = thermal_storage_capacity_per_floor_area
+        self.korrekturfaktor_luftungs_eff_f_v = korrekturfaktor_luftungs_eff_f_v
+        self.hohe_uber_meer = height_above_sea
+
+        ### RC Simulator inputs (derive from other inputs as much as possible)
+        ## So far the lighting load is still hard coded because it is not looked at and I don't know the source.
+        lighting_load = 11.7  # [W/m2] (source?)
+        lighting_control = 300.0  # lux threshold at which the lights turn on.
+        lighting_utilisation_factor = 0.45
+        lighting_maintenance_factor = 0.9
+
+        self.window_area = self.windows[1].sum()  # sums up all window area
+        self.external_envelope_area = self.walls[0].sum() + self.windows[1].sum()  # so far includes vertical envelope
+        self.room_depth = np.sqrt(self.energy_reference_area)  # assumption: quadratic foot print, one story
+        self.room_width = np.sqrt(self.energy_reference_area)  # assumption: quadratic foot print, one story
+        self.room_height = 3 #m (for now a fixed value)
+        self.lighting_load = lighting_load
+        self.lighting_control = lighting_control
+        self.lighting_utilisation_factor = lighting_utilisation_factor
+        self.lighting_maintenance_factor = lighting_maintenance_factor
+        self.u_walls = (self.walls[0]*self.walls[1]).sum() /self.walls[0].sum()  # weighted average of walls u-values
+        self.u_windows = (self.windows[1]*self.windows[2]).sum() /self.windows[1].sum() # weighted average of window u-values
+        self.g_windows = (self.windows[1]*self.windows[3]).sum() /self.windows[1].sum() # weighted average of window g-values
+        self.ach_vent = None
+        self.ach_infl = self.q_inf / self.room_height  # Umrechnung von m3/(h*m2) in 1/h
+        self.ventilation_efficiency = self.anlagennutzungsgrad_wrg
+        self.thermal_capacitance_per_floor_area = self.warmespeicherfahigkeit_pro_ebf
+        self.t_set_heating = None
+        self.t_set_cooling = None
+        self.max_cooling_energy_per_floor_area = -np.inf
+        self.max_heating_energy_per_floor_area = np.inf
+        # self.heating_supply_system = supply_system.ElectricHeating  # Figure out a way to make this compatible with SIA definitions
+        # self.cooling_supply_system = supply_system.DirectCooler  # Figure out a way to make this compatible with SIA definitions
+        # self.heating_emission_system = emission_system.FloorHeating  # Figure out a way to make this compatible with SIA definitions
+        # self.cooling_emission_system = emission_system.AirConditioning  # Figure out a way to make this compatible with SIA definitions
+        self.dhw_supply_temperature = 60  # deg C
+
+
+    def run_rc_simulation(self, weatherfile_path, occupancy_path, cooling_setpoint):
+        """
+        ACHTUNG. Im Vergleich zum SIA Modul sind hier im Moment noch Wh als output zu finden.
+        :param weatherfile_path:
+        :param occupancy_path:
+        :return:
+        """
+        standard_raumtemperaturen = {1: 20., 2: 20., 3: 20., 4: 20., 5: 20., 6: 20, 7: 20, 8: 22, 9: 18, 10: 18, 11: 18,
+                                     12: 28}  # 380-1 Tab7
+        warmeabgabe_p_p = {1: 70., 2: 70., 3: 80., 4: 70., 5: 90., 6: 100., 7: 80., 8: 80., 9: 100., 10: 100., 11: 100.,
+                           12: 60.}  # 380-1 Tab10 (W)
+
+        elektrizitatsbedarf = {1: 28., 2: 22., 3: 22., 4: 11., 5: 33., 6: 33., 7: 17., 8: 28., 9: 17., 10: 6., 11: 6.,
+                               12: 56.}  # 380-1 Tab12 (kWh/m2a)
+
+        personenflachen = {1: 40., 2: 60., 3: 20., 4: 10., 5: 10., 6: 5, 7: 5., 8: 30., 9: 20., 10: 100., 11: 20.,
+                           12: 20.}  # 380-1 Tab9
+
+        aussenluft_strome = {1: 0.7, 2: 0.7, 3: 0.7, 4: 0.7, 5: 0.7, 6: 1.2, 7: 1.0, 8: 1.0, 9: 0.7, 10: 0.3, 11: 0.7,
+                             12: 0.7}  # 380-1 Tab14
+
+
+        self.t_set_heating = standard_raumtemperaturen[int(self.gebaeudekategorie_sia)]
+        Loc = Location(epwfile_path=weatherfile_path)
+        gain_per_person = warmeabgabe_p_p[int(self.gebaeudekategorie_sia)]  # W/m2
+        appliance_gains = elektrizitatsbedarf[int(self.gebaeudekategorie_sia)]/365/24  # W per sqm (constant over the year)
+        max_occupancy = self.energy_reference_area / personenflachen[int(self.gebaeudekategorie_sia)]
+        self.ach_vent = aussenluft_strome[int(self.gebaeudekategorie_sia)]/self.room_height  # here we switch from SIA m3/hm2 to air change rate /h
+
+        Office = Building(window_area=self.window_area,
+                          external_envelope_area=self.external_envelope_area,
+                          room_depth=self.room_depth,
+                          room_width=self.room_width,
+                          room_height=self.room_height,
+                          lighting_load=self.lighting_load,
+                          lighting_control=self.lighting_control,
+                          lighting_utilisation_factor=self.lighting_utilisation_factor,
+                          lighting_maintenance_factor=self.lighting_maintenance_factor,
+                          u_walls=self.u_walls,
+                          u_windows=self.u_windows,
+                          ach_vent=self.ach_vent,
+                          ach_infl=self.ach_infl,
+                          ventilation_efficiency=self.ventilation_efficiency,
+                          thermal_capacitance_per_floor_area=self.thermal_capacitance_per_floor_area * 3600 * 1000,  # Comes as kWh/m2K and needs to be J/m2K
+                          t_set_heating=self.t_set_heating,
+                          t_set_cooling=cooling_setpoint,  # maybe this can be added to the simulation object as well
+                          max_cooling_energy_per_floor_area=self.max_cooling_energy_per_floor_area,
+                          max_heating_energy_per_floor_area=self.max_heating_energy_per_floor_area,
+                          heating_supply_system=supply_system.ElectricHeating,  # define this!
+                          cooling_supply_system=supply_system.DirectCooler,  # define this!
+                          heating_emission_system=emission_system.FloorHeating,  # define this!
+                          cooling_emission_system=emission_system.AirConditioning,  # define this!
+                          dhw_supply_temperature=self.dhw_supply_temperature, )
+
+        SouthWindow = Window(azimuth_tilt=0., alititude_tilt=90.0, glass_solar_transmittance=self.g_windows,
+                             glass_light_transmittance=0.5, area=self.window_area)  # az and alt are hardcoded because
+                                # they are assumed to be vertical south facing windows (IMPROVE!)
+
+        # RoofPV = PhotovoltaicSurface(azimuth_tilt=pv_azimuth, alititude_tilt=pv_tilt, stc_efficiency=pv_efficiency,
+        #                              performance_ratio=0.8, area=pv_area)  # Performance ratio is still hard coded.
+        # Temporarily disabled. Add again later
+
+        ## Define occupancy
+        occupancyProfile = pd.read_csv(occupancy_path)
+
+        t_m_prev = 20.0  # This is only for the very first step in therefore is hard coded.
+
+        self.electricity_demand = np.empty(8760)
+        # self.total_heat_demand = np.empty(8760)  ## add again, when dhw is solved
+        self.heating_electricity_demand = np.empty(8760)
+        self.heating_demand = np.empty(8760)
+        self.cooling_electricity_demand = np.empty(8760)
+        self.cooling_demand = np.empty(8760)
+        self.solar_gains = np.empty(8760)
+        self.indoor_temperature = np.empty(8760)
+
+        for hour in range(8760):
+            # Occupancy for the time step
+            occupancy = occupancyProfile.loc[hour, 'People'] * max_occupancy
+            # Gains from occupancy and appliances
+            internal_gains = occupancy * gain_per_person + appliance_gains * Office.floor_area
+
+            # Domestic hot water schedule  ### add this in a later stage
+            # dhw_demand = annual_dhw_p_person / occupancyProfile['People'].sum() * occupancy  # Wh
+
+            # Extract the outdoor temperature in Zurich for that hour
+            t_out = Loc.weather_data['drybulb_C'][hour]
+
+            Altitude, Azimuth = Loc.calc_sun_position(latitude_deg=47.480, longitude_deg=8.536, year=2015, hoy=hour)
+
+            SouthWindow.calc_solar_gains(sun_altitude=Altitude, sun_azimuth=Azimuth,
+                                         normal_direct_radiation=Loc.weather_data['dirnorrad_Whm2'][hour],
+                                         horizontal_diffuse_radiation=Loc.weather_data['difhorrad_Whm2'][hour])
+
+            SouthWindow.calc_illuminance(sun_altitude=Altitude, sun_azimuth=Azimuth,
+                                         normal_direct_illuminance=Loc.weather_data['dirnorillum_lux'][hour],
+                                         horizontal_diffuse_illuminance=Loc.weather_data['difhorillum_lux'][hour])
+
+            Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,
+                                         t_out=t_out,
+                                         t_m_prev=t_m_prev, dhw_demand=0)  # Add dhw once it is back in the game!
+
+            Office.solve_building_lighting(illuminance=SouthWindow.transmitted_illuminance, occupancy=occupancy)
+
+            # Set the previous temperature for the next time step
+
+            t_m_prev = Office.t_m_next
+
+
+            self.heating_electricity_demand[hour] = Office.heating_sys_electricity  # unit? heating electricity demand
+            self.cooling_electricity_demand[hour] = Office.cooling_sys_electricity  # unit?
+            self.solar_gains[hour] = SouthWindow.solar_gains
+            self.electricity_demand[
+                hour] = Office.heating_sys_electricity + Office.dhw_sys_electricity + Office.cooling_sys_electricity  # in Wh
+            self.heating_demand[hour] = Office.heating_demand  # this is the actual heat emitted, unit?
+            self.cooling_demand[hour] = Office.cooling_demand
+            self.indoor_temperature[hour] = Office.t_air
+
+            # self.total_heat_demand[hour] = Office.heating_demand + Office.dhw_demand  ## add again when dhw is solved
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def run_rc_asdfsimulation(external_envelope_area, window_area, room_width, room_depth, room_height,
                    thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl, ventilation_efficiency,
                    max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area, pv_area, pv_efficiency,
                    pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path, grid_decarbonization_factors,
@@ -20,11 +231,7 @@ def run_rc_simulation(external_envelope_area, window_area, room_width, room_dept
 
     Loc = Location(epwfile_path=weatherfile_path)
 
-    ## So far the lighting load is still hard coded because it is not looked at.
-    lighting_load=11.7  # [W/m2] (source?)
-    lighting_control = 300.0  # lux threshold at which the lights turn on.
-    lighting_utilisation_factor=0.45
-    lighting_maintenance_factor=0.9
+
 
 
     ## Define constants

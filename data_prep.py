@@ -46,6 +46,18 @@ def embodied_emissions_pv_per_kW():
 
 
 
+def persons_from_area_sia(energy_reference_area, type=1):
+
+    if type ==1:
+        personenflache = 50.  # m2/p
+
+    elif type == 3:
+        personenflache = 14.
+
+    occupants = energy_reference_area / personenflache
+    return occupants
+
+
 def electric_appliances_sia(energy_reference_area, type=1, value="standard"):
     """
     This function calculates the use of electric appliances according to SIA 2024
