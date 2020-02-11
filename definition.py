@@ -1,10 +1,8 @@
 import sys
 sys.path.insert(1, r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator")
-import os
 from building_physics import Building
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import data_prep as dp
 import supply_system
 import emission_system
@@ -13,66 +11,238 @@ from radiation import Window
 from radiation import PhotovoltaicSurface
 
 
-def run_simulation(external_envelope_area, window_area, room_width, room_depth, room_height,
+
+class Sim_Building(object):
+    def __init__(self,
+                 gebaeudekategorie_sia,
+                 regelung,
+                 windows,
+                 walls,
+                 roof,
+                 floor,
+                 energy_reference_area,
+                 heat_recovery_nutzungsgrad,
+                 infiltration_volume_flow,
+                 thermal_storage_capacity_per_floor_area,
+                 korrekturfaktor_luftungs_eff_f_v,
+                 height_above_sea
+                 ):
+
+        ### Similar to SIA some are unecessary.
+        self.gebaeudekategorie_sia = gebaeudekategorie_sia
+        self.regelung = regelung
+        self.windows = windows  # np.array of windows with |area|u-value|g-value|orientation|shading_f1|shading_f2|
+        self.walls = walls  # np.array of walls with |area|u-value| so far, b-values are not possible
+        self.roof = roof  # np.array of roofs with |area|u-value|
+        self.floor = floor  # np.array of floowrs with |area|u-value|b-value|
+        self.energy_reference_area = energy_reference_area  # One value, float
+        self.anlagennutzungsgrad_wrg = heat_recovery_nutzungsgrad  # One value, float
+        self.q_inf = infiltration_volume_flow
+        self.warmespeicherfahigkeit_pro_ebf = thermal_storage_capacity_per_floor_area
+        self.korrekturfaktor_luftungs_eff_f_v = korrekturfaktor_luftungs_eff_f_v
+        self.hohe_uber_meer = height_above_sea
+
+        ### RC Simulator inputs (derive from other inputs as much as possible)
+        ## So far the lighting load is still hard coded because it is not looked at and I don't know the source.
+        lighting_load = 11.7  # [W/m2] (source?)
+        lighting_control = 300.0  # lux threshold at which the lights turn on.
+        lighting_utilisation_factor = 0.45
+        lighting_maintenance_factor = 0.9
+
+        self.window_area = self.windows[1].sum()  # sums up all window area
+        self.external_envelope_area = self.walls[0].sum() + self.windows[1].sum()  # so far includes vertical envelope
+        self.room_depth = np.sqrt(self.energy_reference_area)  # assumption: quadratic foot print, one story
+        self.room_width = np.sqrt(self.energy_reference_area)  # assumption: quadratic foot print, one story
+        self.room_height = 3 #m (for now a fixed value)
+        self.lighting_load = lighting_load
+        self.lighting_control = lighting_control
+        self.lighting_utilisation_factor = lighting_utilisation_factor
+        self.lighting_maintenance_factor = lighting_maintenance_factor
+        self.u_walls = (self.walls[0]*self.walls[1]).sum() /self.walls[0].sum()  # weighted average of walls u-values
+        self.u_windows = (self.windows[1]*self.windows[2]).sum() /self.windows[1].sum() # weighted average of window u-values
+        self.g_windows = (self.windows[1]*self.windows[3]).sum() /self.windows[1].sum() # weighted average of window g-values
+        self.ach_vent = None
+        self.ach_infl = self.q_inf / self.room_height  # Umrechnung von m3/(h*m2) in 1/h
+        self.ventilation_efficiency = self.anlagennutzungsgrad_wrg
+        self.thermal_capacitance_per_floor_area = self.warmespeicherfahigkeit_pro_ebf
+        self.t_set_heating = None
+        self.t_set_cooling = None
+        self.max_cooling_energy_per_floor_area = -np.inf
+        self.max_heating_energy_per_floor_area = np.inf
+        # self.heating_supply_system = supply_system.ElectricHeating  # Figure out a way to make this compatible with SIA definitions
+        # self.cooling_supply_system = supply_system.DirectCooler  # Figure out a way to make this compatible with SIA definitions
+        # self.heating_emission_system = emission_system.FloorHeating  # Figure out a way to make this compatible with SIA definitions
+        # self.cooling_emission_system = emission_system.AirConditioning  # Figure out a way to make this compatible with SIA definitions
+        self.dhw_supply_temperature = 60  # deg C
+
+
+    def run_rc_simulation(self, weatherfile_path, occupancy_path, cooling_setpoint):
+        """
+        ACHTUNG. Im Vergleich zum SIA Modul sind hier im Moment noch Wh als output zu finden.
+        :param weatherfile_path:
+        :param occupancy_path:
+        :return:
+        """
+        standard_raumtemperaturen = {1: 20., 2: 20., 3: 20., 4: 20., 5: 20., 6: 20, 7: 20, 8: 22, 9: 18, 10: 18, 11: 18,
+                                     12: 28}  # 380-1 Tab7
+        warmeabgabe_p_p = {1: 70., 2: 70., 3: 80., 4: 70., 5: 90., 6: 100., 7: 80., 8: 80., 9: 100., 10: 100., 11: 100.,
+                           12: 60.}  # 380-1 Tab10 (W)
+
+        elektrizitatsbedarf = {1: 28., 2: 22., 3: 22., 4: 11., 5: 33., 6: 33., 7: 17., 8: 28., 9: 17., 10: 6., 11: 6.,
+                               12: 56.}  # 380-1 Tab12 (kWh/m2a)
+
+        personenflachen = {1: 40., 2: 60., 3: 20., 4: 10., 5: 10., 6: 5, 7: 5., 8: 30., 9: 20., 10: 100., 11: 20.,
+                           12: 20.}  # 380-1 Tab9
+
+        aussenluft_strome = {1: 0.7, 2: 0.7, 3: 0.7, 4: 0.7, 5: 0.7, 6: 1.2, 7: 1.0, 8: 1.0, 9: 0.7, 10: 0.3, 11: 0.7,
+                             12: 0.7}  # 380-1 Tab14
+
+
+        self.t_set_heating = standard_raumtemperaturen[int(self.gebaeudekategorie_sia)]
+        Loc = Location(epwfile_path=weatherfile_path)
+        gain_per_person = warmeabgabe_p_p[int(self.gebaeudekategorie_sia)]  # W/m2
+        appliance_gains = elektrizitatsbedarf[int(self.gebaeudekategorie_sia)]/365/24  # W per sqm (constant over the year)
+        max_occupancy = self.energy_reference_area / personenflachen[int(self.gebaeudekategorie_sia)]
+        self.ach_vent = aussenluft_strome[int(self.gebaeudekategorie_sia)]/self.room_height  # here we switch from SIA m3/hm2 to air change rate /h
+
+        Office = Building(window_area=self.window_area,
+                          external_envelope_area=self.external_envelope_area,
+                          room_depth=self.room_depth,
+                          room_width=self.room_width,
+                          room_height=self.room_height,
+                          lighting_load=self.lighting_load,
+                          lighting_control=self.lighting_control,
+                          lighting_utilisation_factor=self.lighting_utilisation_factor,
+                          lighting_maintenance_factor=self.lighting_maintenance_factor,
+                          u_walls=self.u_walls,
+                          u_windows=self.u_windows,
+                          ach_vent=self.ach_vent,
+                          ach_infl=self.ach_infl,
+                          ventilation_efficiency=self.ventilation_efficiency,
+                          thermal_capacitance_per_floor_area=self.thermal_capacitance_per_floor_area * 3600 * 1000,  # Comes as kWh/m2K and needs to be J/m2K
+                          t_set_heating=self.t_set_heating,
+                          t_set_cooling=cooling_setpoint,  # maybe this can be added to the simulation object as well
+                          max_cooling_energy_per_floor_area=self.max_cooling_energy_per_floor_area,
+                          max_heating_energy_per_floor_area=self.max_heating_energy_per_floor_area,
+                          heating_supply_system=supply_system.ElectricHeating,  # define this!
+                          cooling_supply_system=supply_system.DirectCooler,  # define this!
+                          heating_emission_system=emission_system.FloorHeating,  # define this!
+                          cooling_emission_system=emission_system.AirConditioning,  # define this!
+                          dhw_supply_temperature=self.dhw_supply_temperature, )
+
+        SouthWindow = Window(azimuth_tilt=0., alititude_tilt=90.0, glass_solar_transmittance=self.g_windows,
+                             glass_light_transmittance=0.5, area=self.window_area)  # az and alt are hardcoded because
+                                # they are assumed to be vertical south facing windows (IMPROVE!)
+
+        # RoofPV = PhotovoltaicSurface(azimuth_tilt=pv_azimuth, alititude_tilt=pv_tilt, stc_efficiency=pv_efficiency,
+        #                              performance_ratio=0.8, area=pv_area)  # Performance ratio is still hard coded.
+        # Temporarily disabled. Add again later
+
+        ## Define occupancy
+        occupancyProfile = pd.read_csv(occupancy_path)
+
+        t_m_prev = 20.0  # This is only for the very first step in therefore is hard coded.
+
+        self.electricity_demand = np.empty(8760)
+        # self.total_heat_demand = np.empty(8760)  ## add again, when dhw is solved
+        self.heating_electricity_demand = np.empty(8760)
+        self.heating_demand = np.empty(8760)
+        self.cooling_electricity_demand = np.empty(8760)
+        self.cooling_demand = np.empty(8760)
+        self.solar_gains = np.empty(8760)
+        self.indoor_temperature = np.empty(8760)
+
+        for hour in range(8760):
+            # Occupancy for the time step
+            occupancy = occupancyProfile.loc[hour, 'People'] * max_occupancy
+            # Gains from occupancy and appliances
+            internal_gains = occupancy * gain_per_person + appliance_gains * Office.floor_area
+
+            # Domestic hot water schedule  ### add this in a later stage
+            # dhw_demand = annual_dhw_p_person / occupancyProfile['People'].sum() * occupancy  # Wh
+
+            # Extract the outdoor temperature in Zurich for that hour
+            t_out = Loc.weather_data['drybulb_C'][hour]
+
+            Altitude, Azimuth = Loc.calc_sun_position(latitude_deg=47.480, longitude_deg=8.536, year=2015, hoy=hour)
+
+            SouthWindow.calc_solar_gains(sun_altitude=Altitude, sun_azimuth=Azimuth,
+                                         normal_direct_radiation=Loc.weather_data['dirnorrad_Whm2'][hour],
+                                         horizontal_diffuse_radiation=Loc.weather_data['difhorrad_Whm2'][hour])
+
+            SouthWindow.calc_illuminance(sun_altitude=Altitude, sun_azimuth=Azimuth,
+                                         normal_direct_illuminance=Loc.weather_data['dirnorillum_lux'][hour],
+                                         horizontal_diffuse_illuminance=Loc.weather_data['difhorillum_lux'][hour])
+
+            Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,
+                                         t_out=t_out,
+                                         t_m_prev=t_m_prev, dhw_demand=0)  # Add dhw once it is back in the game!
+
+            Office.solve_building_lighting(illuminance=SouthWindow.transmitted_illuminance, occupancy=occupancy)
+
+            # Set the previous temperature for the next time step
+
+            t_m_prev = Office.t_m_next
+
+
+            self.heating_electricity_demand[hour] = Office.heating_sys_electricity  # unit? heating electricity demand
+            self.cooling_electricity_demand[hour] = Office.cooling_sys_electricity  # unit?
+            self.solar_gains[hour] = SouthWindow.solar_gains
+            self.electricity_demand[
+                hour] = Office.heating_sys_electricity + Office.dhw_sys_electricity + Office.cooling_sys_electricity  # in Wh
+            self.heating_demand[hour] = Office.heating_demand  # this is the actual heat emitted, unit?
+            self.cooling_demand[hour] = Office.cooling_demand
+            self.indoor_temperature[hour] = Office.t_air
+
+            # self.total_heat_demand[hour] = Office.heating_demand + Office.dhw_demand  ## add again when dhw is solved
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def run_rc_asdfsimulation(external_envelope_area, window_area, room_width, room_depth, room_height,
                    thermal_capacitance_per_floor_area, u_walls, u_windows, ach_vent, ach_infl, ventilation_efficiency,
                    max_heating_energy_per_floor_area, max_cooling_energy_per_floor_area, pv_area, pv_efficiency,
-                   pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path, grid_decarbonization_factors):
+                   pv_tilt, pv_azimuth, lifetime, strom_mix, weatherfile_path, grid_decarbonization_factors,
+                   t_set_heating, t_set_cooling, annual_dhw_p_person, dhw_supply_temperature, use_type):
 
-
-
-    # dirname = os.path.dirname(__file__)
-    # wall_data_path = os.path.join(dirname, 'data/walls.xlsx')
-
-    # Zurich = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw")
-    # Recife = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\BRA_Recife.828990_IWEC.epw")
-    # SaoPaolo = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\BRA_Sao.Paulo-Congonhas.837800_SWERA.epw")
-    # Vancouver = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\CAN_BC_Vancouver.718920_CWEC.epw")
-    # PuntaArenas = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\CHL_Punta.Arenas.859340_IWEC.epw")
-    # Stuttgart = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DEU_Stuttgart.107380_IWEC.epw")
-    # Copenhagen = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DNK_Copenhagen.061800_IWEC.epw")
-    # Algier = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\DZA_Algiers.603900_IWEC.epw")
-    # Barcelona = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ESP_Barcelona.081810_IWEC.epw")
-    # London = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\GBR_London.Gatwick.037760_IWEC.epw")
-    # Milano = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ITA_Milano-Linate.160800_IGDG.epw")
-    # Rome =Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\ITA_Roma-Ciampino.162390_IGDG.epw")
-    # Kiruna = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\SWE_Kiruna.020440_IWEC.epw")
-    # Ostersund = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\SWE_Ostersund.Froson.022260_IWEC.epw")
-    # LongBeach_LA = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_CA_Long.Beach-Daugherty.Field.722970_TMY3.epw")
-    # DesMoines = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IA_Des.Moines.Intl.AP.725460_TMY3.epw")
-    # Chicago = Location(epwfile_path=r"C:\Users\walkerl\Documents\code\proof_of_concept\data\USA_IL_Chicago-OHare.Intl.AP.725300_TMY3.epw")
-
-    # wall_name = "Betonwand, Wärmedämmung mit Lattenrost, Verkleidung"
-    # wall_name = "Holzblockwand, Aussenwärmedämmung, Verkleidung"
-    # wall_name = "Sichtbetonwand, Aussenwärmedämmung verputzt"
-    # wall_name = "Sichtbacksteinmauerwerk, Aussenwärmedämmung verputzt"
-
-
-
-
-
-    # LocList = [Zurich, Recife, SaoPaolo, Vancouver, PuntaArenas, Stuttgart, Copenhagen, Algier, Barcelona, London, Milano,
-    #            Rome, Kiruna, Ostersund, LongBeach_LA, DesMoines, Chicago]
-
-    # Loc = Zurich
 
     Loc = Location(epwfile_path=weatherfile_path)
 
 
 
-    lighting_load=11.7  # [W/m2] (source?)
-    lighting_control = 300.0  # lux threshold at which the lights turn on.
-    lighting_utilisation_factor=0.45
-    lighting_maintenance_factor=0.9
+
+    ## Define constants
+
+    gain_per_person = 100 # W per sqm (why is that per sqm when it says per person?)
+    appliance_gains= 14 #W per sqm
+    max_occupancy=50  # number of occupants (could be simplified by using area per person values)
+    floor_area = room_width * room_depth
 
 
-    t_set_heating = 20.0
-    t_set_cooling = 26.0
-
-
-    use_type = 3  # only goes into electrical appliances according to SIA (1=residential, 3= office)
-
-
-    Office_1X = Building(window_area=window_area,
+    Office = Building(window_area=window_area,
                     external_envelope_area=external_envelope_area,
                     room_depth=room_depth,
                     room_width=room_width,
@@ -94,61 +264,8 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
                     heating_supply_system=supply_system.ElectricHeating,
                     cooling_supply_system=supply_system.DirectCooler, # What can we choose here for purely electric case?
                     heating_emission_system=emission_system.FloorHeating,
-                    cooling_emission_system=emission_system.AirConditioning,)
-
-    Office_2X = Building(window_area=window_area,
-                    external_envelope_area=external_envelope_area,
-                    room_depth=room_depth,
-                    room_width=room_width,
-                    room_height=room_height,
-                    lighting_load=lighting_load,
-                    lighting_control = lighting_control,
-                    lighting_utilisation_factor=lighting_utilisation_factor,
-                    lighting_maintenance_factor=lighting_maintenance_factor,
-                    u_walls = u_walls,
-                    u_windows = u_windows,
-                    ach_vent=ach_vent,
-                    ach_infl=ach_infl,
-                    ventilation_efficiency=ventilation_efficiency,
-                    thermal_capacitance_per_floor_area = thermal_capacitance_per_floor_area,
-                    t_set_heating = t_set_heating,
-                    t_set_cooling = t_set_cooling,
-                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area[1],
-                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area[1],
-                    heating_supply_system=supply_system.HeatPumpAir,
-                    cooling_supply_system=supply_system.HeatPumpAir,
-                    heating_emission_system=emission_system.FloorHeating,
-                    cooling_emission_system=emission_system.FloorHeating,)
-
-    Office_32 = Building(window_area=window_area,
-                    external_envelope_area=external_envelope_area,
-                    room_depth=room_depth,
-                    room_width=room_width,
-                    room_height=room_height,
-                    lighting_load=lighting_load,
-                    lighting_control = lighting_control,
-                    lighting_utilisation_factor=lighting_utilisation_factor,
-                    lighting_maintenance_factor=lighting_maintenance_factor,
-                    u_walls = u_walls,
-                    u_windows = u_windows,
-                    ach_vent=ach_vent,
-                    ach_infl=ach_infl,
-                    ventilation_efficiency=ventilation_efficiency,
-                    thermal_capacitance_per_floor_area = thermal_capacitance_per_floor_area,
-                    t_set_heating = t_set_heating,
-                    t_set_cooling = t_set_cooling,
-                    max_cooling_energy_per_floor_area=max_cooling_energy_per_floor_area[2],
-                    max_heating_energy_per_floor_area=max_heating_energy_per_floor_area[2],
-                    heating_supply_system=supply_system.HeatPumpWater,
-                    cooling_supply_system=supply_system.HeatPumpWater,
-                    heating_emission_system=emission_system.FloorHeating,
-                    cooling_emission_system=emission_system.FloorHeating,)
-
-
-    ### emission factors according to empa_Alice Chevrier Semester Project in g/Wh
-
-    # aproximated values from the graph
-
+                    cooling_emission_system=emission_system.AirConditioning,
+                    dhw_supply_temperature=dhw_supply_temperature,)
 
 
     SouthWindow = Window(azimuth_tilt=0., alititude_tilt = 90.0, glass_solar_transmittance=0.5,
@@ -157,30 +274,22 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
     ## Define PV to this building
 
     RoofPV = PhotovoltaicSurface(azimuth_tilt=pv_azimuth, alititude_tilt = pv_tilt, stc_efficiency=pv_efficiency,
-                         performance_ratio=0.8, area = pv_area)
+                         performance_ratio=0.8, area = pv_area)  # Performance ratio is still hard coded.
 
 
     ## Define occupancy
-    occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\schedules_el_SINGLE_RES.csv")
+    occupancyProfile=pd.read_csv(r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\occupancy_office.csv")
 
 
-    ## Define constants
 
-    gain_per_person = 100 # W per sqm
-    appliance_gains= 14 #W per sqm
-    max_occupancy=4.0
 
     ## Define embodied emissions: # In a later stage this could be included in the RC model "supply_system.py file"
-    coeq_gshp = 272.5 #kg/kW [KBOB 2016]
-    coeq_borehole = 28.1 #kg/m[KBOB 2016]
-    coeq_ashp = 363.75 #kg/kW [KBOB 2016]
-    coeq_underfloor_heating = 5.06 #kg/m2 [KBOB]
-    coeq_pv = 2080 # kg/kWp [KBOB 2016]
-
-    coeq_el_heater = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
-
-    #standard on GWP100, 0.18m insulation
-    # coeq_wall = dp.extract_wall_data(wall_data_path, name=wall_name, area=external_envelope_area-window_area)
+    coeq_gshp = dp.embodied_emissions_heat_generation_kbob_per_kW("gshp")  # kgCO2/kW ## zusätzlich automatisieren
+    coeq_borehole = dp.embodied_emissions_borehole_per_m() #kg/m
+    coeq_ashp = dp.embodied_emissions_heat_generation_kbob_per_kW("ashp")  # kgCO2/kW ## zusätzlich automatisieren
+    coeq_underfloor_heating = dp.embodied_emissions_heat_emission_system_per_m2("underfloor heating") #kg/m2
+    coeq_pv = dp.embodied_emissions_pv_per_kW()  # kg/kWp
+    coeq_el_heater = dp.embodied_emissions_heat_generation_kbob_per_kW("electric heater")  #kg/kW
 
 
     #electricity demand from appliances
@@ -189,200 +298,164 @@ def run_simulation(external_envelope_area, window_area, room_width, room_depth, 
 
 
     #Starting temperature of the builidng:
-    t_m_prev=20.0
+    t_m_prev=20.0 # This is only for the very first step in therefore is hard coded.
 
 
     # hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
     # hourly_emission_factors = dp.build_monthly_emission_factors(strom_mix)
     hourly_emission_factors = dp.build_yearly_emission_factors(strom_mix)
     hourly_emission_factors = hourly_emission_factors*grid_decarbonization_factors.mean()
-    office_list = [Office_1X, Office_2X, Office_32]
-
-
-    electricity_demands_list = []
-    pv_yields_list = []
-    heating_demands_list = []
-    cooling_demands_list = []
-    indoor_temperature_list = []
-    heat_emission_list = []
-    cold_emission_list = []
-
-
-    for Office in office_list:
-        electricity_demand = np.empty(8760)
-        solar_yield = np.empty(8760)
-        heating_demand = []
-        cooling_demand = []
-        solar_gains = []
-        indoor_temperature = []
-        emission_heat_demand = []
-        emission_cold_demand = []
-
-        for hour in range(8760):
-
-            #Occupancy for the time step
-            occupancy = occupancyProfile.loc[hour,'People'] * max_occupancy
-            #Gains from occupancy and appliances
-            internal_gains = occupancy*gain_per_person + appliance_gains*Office.floor_area
-
-            #Extract the outdoor temperature in Zurich for that hour
-            t_out = Loc.weather_data['drybulb_C'][hour]
-
-            Altitude, Azimuth = Loc.calc_sun_position(latitude_deg=47.480, longitude_deg=8.536, year=2015, hoy=hour)
-
-            SouthWindow.calc_solar_gains(sun_altitude = Altitude, sun_azimuth = Azimuth,
-                                         normal_direct_radiation= Loc.weather_data['dirnorrad_Whm2'][hour],
-                                         horizontal_diffuse_radiation = Loc.weather_data['difhorrad_Whm2'][hour])
-
-            SouthWindow.calc_illuminance(sun_altitude = Altitude, sun_azimuth = Azimuth,
-                                         normal_direct_illuminance = Loc.weather_data['dirnorillum_lux'][hour],
-                                         horizontal_diffuse_illuminance = Loc.weather_data['difhorillum_lux'][hour])
-
-            RoofPV.calc_solar_yield(sun_altitude = Altitude, sun_azimuth=Azimuth,
-                                   normal_direct_radiation=Loc.weather_data['dirnorrad_Whm2'][hour],
-                                   horizontal_diffuse_radiation=Loc.weather_data['difhorrad_Whm2'][hour])
-
-
-            Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,t_out=t_out,
-                                         t_m_prev=t_m_prev)
-
-            Office.solve_building_lighting(illuminance=SouthWindow.transmitted_illuminance, occupancy=occupancy)
-
-            #Set the previous temperature for the next time step
-
-            t_m_prev=Office.t_m_next
 
 
 
-            heating_demand.append(Office.heating_sys_electricity)
-            cooling_demand.append(Office.cooling_sys_electricity)
-            solar_gains.append(SouthWindow.solar_gains)
-            electricity_demand[hour] = Office.heating_sys_electricity + Office.cooling_sys_electricity
-            solar_yield[hour]=RoofPV.solar_yield
-            emission_heat_demand.append(Office.heating_demand)
-            emission_cold_demand.append(Office.cooling_demand)
-            indoor_temperature.append(Office.t_air)
 
-        plt.plot(indoor_temperature)
-        plt.axhline(20)
-        plt.axhline(26)
-        plt.show()
-        electricity_demand = electricity_demand + electric_appliances
-        heating_demands_list.append(heating_demand)  # This is the electricity needed for heating with the respective system
-        heat_emission_list.append(emission_heat_demand)  # This is the actual heat emitted
-        cooling_demands_list.append(cooling_demand)  # This is the electricity needed for cooling with the respective system
-        cold_emission_list.append(emission_cold_demand) # This is the actual heat emitted
-        electricity_demands_list.append(electricity_demand) # in Wh
-        pv_yields_list.append(solar_yield) #in Wh
-        indoor_temperature_list.append(indoor_temperature)
-    floor_area = room_width * room_depth
-    max_required_heating_per_floor_area = [max(heat_emission_list[0])/floor_area,
-                                           max(heat_emission_list[1])/floor_area,
-                                           max(heat_emission_list[2])/floor_area]  # W/m2
-    max_required_cooling_per_floor_area = [min(cold_emission_list[0])/floor_area,
-                                           min(cold_emission_list[1])/floor_area,
-                                           min(cold_emission_list[2])/floor_area]  # W/m2
+    electricity_demand = np.empty(8760)
+    pv_yield = np.empty(8760)
+    total_heat_demand = np.empty(8760)
+    heating_electricity_demand = np.empty(8760)
+    heating_demand = np.empty(8760)
+    cooling_electricity_demand = np.empty(8760)
+    cooling_demand = np.empty(8760)
+    solar_gains = np.empty(8760)
+    indoor_temperature = np.empty(8760)
 
 
-    net_electricity_demands_list = np.subtract(electricity_demands_list, pv_yields_list)
+    for hour in range(8760):
 
-    net_self_consumption = np.empty((len(office_list), 8760))
-    for i in range(len(office_list)):
-        for hour in range(8760):
-            net_self_consumption[i][hour] = min(pv_yields_list[i][hour], electricity_demands_list[i][hour])
+        #Occupancy for the time step
+        occupancy = occupancyProfile.loc[hour,'People'] * max_occupancy
+        #Gains from occupancy and appliances
+        internal_gains = occupancy*gain_per_person + appliance_gains*Office.floor_area
+
+        # Domestic hot water schedule
+        dhw_demand = annual_dhw_p_person/ occupancyProfile['People'].sum() * occupancy  # Wh
+
+        #Extract the outdoor temperature in Zurich for that hour
+        t_out = Loc.weather_data['drybulb_C'][hour]
+
+        Altitude, Azimuth = Loc.calc_sun_position(latitude_deg=47.480, longitude_deg=8.536, year=2015, hoy=hour)
+
+        SouthWindow.calc_solar_gains(sun_altitude = Altitude, sun_azimuth = Azimuth,
+                                     normal_direct_radiation= Loc.weather_data['dirnorrad_Whm2'][hour],
+                                     horizontal_diffuse_radiation = Loc.weather_data['difhorrad_Whm2'][hour])
+
+        SouthWindow.calc_illuminance(sun_altitude = Altitude, sun_azimuth = Azimuth,
+                                     normal_direct_illuminance = Loc.weather_data['dirnorillum_lux'][hour],
+                                     horizontal_diffuse_illuminance = Loc.weather_data['difhorillum_lux'][hour])
+
+        RoofPV.calc_solar_yield(sun_altitude = Altitude, sun_azimuth=Azimuth,
+                               normal_direct_radiation=Loc.weather_data['dirnorrad_Whm2'][hour],
+                               horizontal_diffuse_radiation=Loc.weather_data['difhorrad_Whm2'][hour])
+
+
+        Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,t_out=t_out,
+                                     t_m_prev=t_m_prev, dhw_demand=dhw_demand)
+
+        Office.solve_building_lighting(illuminance=SouthWindow.transmitted_illuminance, occupancy=occupancy)
+
+        #Set the previous temperature for the next time step
+
+        t_m_prev=Office.t_m_next
+
+
+
+        heating_electricity_demand[hour] =Office.heating_sys_electricity  # unit? heating electricity demand
+        cooling_electricity_demand[hour] = Office.cooling_sys_electricity  # unit?
+        solar_gains[hour] = SouthWindow.solar_gains
+        electricity_demand[hour] = Office.heating_sys_electricity + Office.dhw_sys_electricity + Office.cooling_sys_electricity  # in Wh
+        pv_yield[hour]=RoofPV.solar_yield  # in Wh
+        heating_demand[hour] = Office.heating_demand  # this is the actual heat emitted, unit?
+        cooling_demand[hour] = Office.cooling_demand
+        indoor_temperature[hour] = Office.t_air
+
+        total_heat_demand[hour] = Office.heating_demand + Office.dhw_demand
+
+
+
+    electricity_demand = electricity_demand + electric_appliances
+
+
+
+
+    max_required_heating_per_floor_area = max(heating_demand)/floor_area  # W/m2
+    max_required_cooling_per_floor_area = min(cooling_demand)/floor_area  # W/m2
+
+
+    net_electricity_demand = np.subtract(electricity_demand, pv_yield)
+
+    net_self_consumption = np.empty(8760)
+    for hour in range(8760):
+        net_self_consumption[hour] = min(pv_yield[hour], electricity_demand[hour])
 
 
     # this is the ratio of electricity used to electricity produced and thus the emissions that are allocated to the building.
-    embodied_pv_ratio = net_self_consumption.sum(axis=1)/np.array(pv_yields_list).sum(axis=1)
+    # This is highly questionable, meaning, it is discussed a lot
+    embodied_pv_ratio = net_self_consumption.sum()/pv_yield.sum()
 
 
 
-    net_operational_emissions = np.multiply(net_electricity_demands_list/1000.,hourly_emission_factors)
+    net_operational_emissions = np.multiply(net_electricity_demand / 1000., hourly_emission_factors)
     operational_emissions = np.copy(net_operational_emissions)
-    operational_emissions[operational_emissions<0] = 0.00
+    operational_emissions[operational_emissions < 0] = 0.00
 
 
-    ## embodied emissions:
+    ## heat calculations:
+    annual_normalized_heat_demand = heating_demand.sum()/1000 / floor_area
 
-    #PV
-    kwp_pv = RoofPV.area * RoofPV.efficiency # = kWp
-    pv_embodied = kwp_pv*coeq_pv
+    print("Annual_normalized_heat_demand:")
+    print(annual_normalized_heat_demand)
 
 
-    # direct electrical
-    el_underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq [wird als zusatz genommen weil mit heater alleine ja noch nicht geheizt]
-    embodied_direct = coeq_el_heater * np.percentile(heating_demands_list[0],97.5)/1000. +el_underfloor_heating_embodied + pv_embodied * embodied_pv_ratio[0] #_embodied emissions of the electrical heating system
-
-    # ASHP
-    ashp_power = np.percentile(heating_demands_list[1],97.5)/1000. #kW
-    ashp_embodied = coeq_ashp*ashp_power # kgCO2eq
-    underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
-    embodied_ashp = ashp_embodied + underfloor_heating_embodied + pv_embodied*embodied_pv_ratio[1]
-
-    # GSHP
-    borehole_depth = 20 #m/kW - entspricht einer spezifischen Entzugsleistung von 50W/m
-    gshp_power = np.percentile(heating_demands_list[2],97.5)/1000 #kW
-    gshp_embodied = coeq_gshp * gshp_power # kgCO2eq
+    ## embodied emissions:    DO NOT YET USE THIS PART OF THE SIMULATION!!!!!
+    #
+    # #PV
+    # kwp_pv = RoofPV.area * RoofPV.efficiency # = kWp
+    # pv_embodied = kwp_pv*coeq_pv
+    #
+    #
+    # # direct electrical
+    # embodied_direct = coeq_el_heater * np.percentile(heating_electricity_demand, 97.5)/1000. \
+    #                   + pv_embodied * embodied_pv_ratio #_embodied emissions of the electrical heating system
+    #
+    # # ASHP
+    # ashp_power = np.percentile(heating_el_demands_list[1],97.5)/1000. #kW
+    # ashp_embodied = coeq_ashp*ashp_power # kgCO2eq
     # underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
-    borehole_embodied = coeq_borehole * borehole_depth * gshp_power
-    embodied_gshp = gshp_embodied + underfloor_heating_embodied + borehole_embodied + pv_embodied * embodied_pv_ratio[2]
-    embodied_emissions = np.array([embodied_direct, embodied_ashp, embodied_gshp])
+    # embodied_ashp = ashp_embodied + underfloor_heating_embodied + pv_embodied*embodied_pv_ratio[1]
+    #
+    # # GSHP
+    # borehole_depth = 20 #m/kW - entspricht einer spezifischen Entzugsleistung von 50W/m
+    # gshp_power = np.percentile(heating_el_demands_list[2],97.5)/1000 #kW
+    # gshp_embodied = coeq_gshp * gshp_power # kgCO2eq
+    # # underfloor_heating_embodied = coeq_underfloor_heating * Office_2X.floor_area # kgCO2eq
+    # borehole_embodied = coeq_borehole * borehole_depth * gshp_power
+    # embodied_gshp = gshp_embodied + underfloor_heating_embodied + borehole_embodied + pv_embodied * embodied_pv_ratio[2]
+    # embodied_emissions = np.array([embodied_direct, embodied_ashp, embodied_gshp])
+    #
+    #
+    # # Annual for 25years lifetime
+    # annual_embodied_emissions = embodied_emissions/lifetime
+    # normalized_annual_embodied_emissions = annual_embodied_emissions/(room_width*room_depth)
 
-
-    # Annual for 25years lifetime
-    annual_embodied_emissions = embodied_emissions/lifetime
-    normalized_annual_embodied_emissions = annual_embodied_emissions/(room_width*room_depth)
     #### Total emissions
-    annual_operational_emissions = operational_emissions.sum(axis=1)
+    annual_operational_emissions = operational_emissions.sum()
     normalized_annual_operational_emissions = annual_operational_emissions/(room_width*room_depth)
 
-    normalized_total_emissions = normalized_annual_embodied_emissions+normalized_annual_operational_emissions
+    # normalized_total_emissions = normalized_annual_embodied_emissions+normalized_annual_operational_emissions
 
-    annual_heating_demand = sum(heating_demand)/(room_depth*room_width)
-    annual_cooling_demand = sum(cooling_demand)/(room_depth*room_width)
-    #
-    # #
-    # fig, ax1 = plt.subplots()
-    # ax1.bar([0,1,2], normalized_annual_embodied_emissions, color="lightblue", label="embodied systems")
-    # ax1.bar([0,1,2], normalized_annual_operational_emissions, bottom=normalized_annual_embodied_emissions,
-    #              color="blue", label="grid allocated")
-    # ax1.bar([0,1,2], [pv_embodied*embodied_pv_ratio[0]/lifetime/(room_depth*room_width),
-    #                        pv_embodied*embodied_pv_ratio[1]/lifetime/(room_depth*room_width),
-    #                        pv_embodied*embodied_pv_ratio[2]/lifetime/(room_depth*room_width)], color="y",
-    #         label="PV allocated")
-    #
-    # ax1.set_title("U_opaque=" + str(u_walls) + " and U windows=" + str(u_windows) + "\nAirChangeInf=" +str(ach_infl) + " AirChangeVent=" + str(ach_vent) + " PV=" + str(kwp_pv) +"kW" )
-    # ax1.set_ylabel("kgCO2eq/(a*m2)")
-    # plt.xticks([0,1,2], ("Pure electric", "ASHP", "GSHP"))
-    # ax2 = ax1.twinx()
-    # ax2.axhline(annual_heating_demand/1000, color="red", label="heating demand")
-    # ax2.axhline(annual_cooling_demand/1000, color= "blue", label="cooling demand")
-    # ax2.set_ylabel("kWh/(a*m2)")
-    # ax2.set_ylim(0)
-    # plt.figlegend(loc="center right", bbox_to_anchor=(0.88,0.67))
-    # plt.show()
-
+    normalized_total_emissions = 0  # placeholder
+    normalized_annual_embodied_emissions = 0  # placeholder
 
 
 
 
     return normalized_total_emissions, normalized_annual_operational_emissions, normalized_annual_embodied_emissions,\
            u_windows, u_walls, thermal_capacitance_per_floor_area, max_required_heating_per_floor_area,\
-           max_required_cooling_per_floor_area, indoor_temperature_list
+           max_required_cooling_per_floor_area, indoor_temperature
 
 
 
 
-    #Visualize hourly values
-    # plt.plot(range(8760), operational_emissions[0], label="direct_power", c="red", ls='--', lw="0.7", marker=".", ms=0.7 )
-    # plt.plot(range(8760), operational_emissions[1], label="ASHP", c="blue", ls='--', lw="0.7", marker=".", ms=0.7)
-    # plt.plot(range(8760), operational_emissions[2], label="GSHP", c="green", ls='--', lw="0.7", marker=".", ms=0.7)
-    #
-    # plt.plot(range(8760), net_electricity_demands_list[0], label="direct_power", c="lightcoral", ls='--', lw="0.7", marker=".", ms=0.7)
-    # plt.plot(range(8760), net_electricity_demands_list[1], label="ASHP", c="lightblue", ls='--', lw="0.7",marker=".", ms=0.7)
-    # plt.plot(range(8760), net_electricity_demands_list[2], label="GSHP", c="lightgreen", ls='--',lw="0.7", marker=".", ms=0.7)
-    # plt.legend()
-    # plt.show()
 
 def comfort_assessment(indoor_temperature_time_series, comfort_range=[19.0, 25.0], discomfort_type="integrated"):
     """

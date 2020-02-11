@@ -4,6 +4,58 @@ import os
 
 
 
+def embodied_emissions_heat_generation_kbob_per_kW(system_type):
+    """
+    This function takes a heat generation system type and returns the respective embodied emissions per kW of installed
+    power.
+    --> this function is very basic and needs to be improved.
+    :param system_type: string of gshp, ashp, electric heater
+    :return: float, embodied kgCO2 equivalent per kW of installed power
+    """
+
+    ## Define embodied emissions: # In a later stage this could be included in the RC model "supply_system.py file"
+    if system_type == "gshp":
+        coeq = 272.5 #kg/kW [KBOB 2016]
+    elif system_type == "ashp":
+        coeq = 363.75 #kg/kW [KBOB 2016]
+
+    elif system_type == "electric heater":
+        coeq = 7.2/5.0  #kg/kW [ecoinvent auxiliary heating unit production, electric, 5kW]
+
+    else:
+        print("Embodied emissions for this system type are not defined")
+        pass
+
+    return coeq
+
+def embodied_emissions_borehole_per_m():
+
+    coeq_borehole = 28.1 #kg/m[KBOB 2016]
+    return coeq_borehole
+
+def embodied_emissions_heat_emission_system_per_m2(em_system_type):
+
+    if em_system_type == "underfloor heating":
+        coeq_underfloor_heating = 5.06 #kg/m2 [KBOB]
+
+    return coeq_underfloor_heating
+
+def embodied_emissions_pv_per_kW():
+    coeq_pv = 2080 # kg/kWp [KBOB 2016]
+    return coeq_pv
+
+
+
+def persons_from_area_sia(energy_reference_area, type=1):
+
+    if type ==1:
+        personenflache = 50.  # m2/p
+
+    elif type == 3:
+        personenflache = 14.
+
+    occupants = energy_reference_area / personenflache
+    return occupants
 
 
 def electric_appliances_sia(energy_reference_area, type=1, value="standard"):
@@ -28,7 +80,7 @@ def electric_appliances_sia(energy_reference_area, type=1, value="standard"):
     else:
         print("No demand schedule for electrical appliances has been defined for this case.")
 
-    return demand_profile #Wh
+    return demand_profile * energy_reference_area #Wh
 
 
 def build_yearly_emission_factors(export_assumption="c"):
