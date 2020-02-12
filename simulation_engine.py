@@ -27,8 +27,8 @@ class Sim_Building(object):
                  korrekturfaktor_luftungs_eff_f_v,
                  height_above_sea,
                  heating_system,
-                 cooling_system
-                 ):
+                 cooling_system,
+                 dhw_heating_system):
 
         print(heating_system)
 
@@ -77,8 +77,7 @@ class Sim_Building(object):
         self.max_heating_energy_per_floor_area = np.inf
         self.dhw_supply_temperature = 60  # deg C fixed and hard coded
 
-        # TODO: Combine these definitions with the definitions of the RC simulator!
-        self.dhw_heating_system = None ## Attention: This is not yet combined with the RC SIMULATOR!!!!!!
+        self.dhw_heating_system = dhw_heating_system
 
 
     def run_rc_simulation(self, weatherfile_path, occupancy_path, cooling_setpoint):
@@ -119,6 +118,7 @@ class Sim_Building(object):
         self.ach_vent = aussenluft_strome[int(self.gebaeudekategorie_sia)]/self.room_height  # here we switch from SIA m3/hm2 to air change rate /h
         heating_supply_system = dp.translate_system_sia_to_rc(self.heating_system)
         cooling_supply_system = dp.translate_system_sia_to_rc(self.cooling_system)
+        self.annual_dhw_demand = annual_dhw_demand[self.gebaeudekategorie_sia] * 1000  # Sia calculates in kWh, RC Simulator in Wh
 
         Office = Building(window_area=self.window_area,
                           external_envelope_area=self.external_envelope_area,
@@ -159,13 +159,15 @@ class Sim_Building(object):
         t_m_prev = 20.0  # This is only for the very first step in therefore is hard coded.
 
         self.electricity_demand = np.empty(8760)
-        # self.total_heat_demand = np.empty(8760)  ## add again, when dhw is solved
+        self.total_heat_demand = np.empty(8760)
         self.heating_electricity_demand = np.empty(8760)
         self.heating_fossil_demand = np.empty(8760)
         self.heating_demand = np.empty(8760)
         self.cooling_electricity_demand = np.empty(8760)
         self.cooling_fossil_demand = np.empty(8760)
         self.cooling_demand = np.empty(8760)
+        self.dhw_electricity_demand = np.empty(8760)
+        self.dhw_fossil_demand = np.empty(8760)
         self.solar_gains = np.empty(8760)
         self.indoor_temperature = np.empty(8760)
 
@@ -176,7 +178,8 @@ class Sim_Building(object):
             internal_gains = occupancy * gain_per_person + appliance_gains * Office.floor_area
 
             # Domestic hot water schedule  ### add this in a later stage
-            # dhw_demand = annual_dhw_p_person / occupancyProfile['People'].sum() * occupancy  # Wh
+            dhw_demand = self.annual_dhw_demand / occupancyProfile['People'].sum()\
+                         * occupancyProfile.loc[hour, 'People'] * self.energy_reference_area # Wh
 
             # Extract the outdoor temperature in Zurich for that hour
             t_out = Loc.weather_data['drybulb_C'][hour]
@@ -193,7 +196,7 @@ class Sim_Building(object):
 
             Office.solve_building_energy(internal_gains=internal_gains, solar_gains=SouthWindow.solar_gains,
                                          t_out=t_out,
-                                         t_m_prev=t_m_prev, dhw_demand=0)  # Add dhw once it is back in the game!
+                                         t_m_prev=t_m_prev, dhw_demand=dhw_demand)
 
             Office.solve_building_lighting(illuminance=SouthWindow.transmitted_illuminance, occupancy=occupancy)
 
@@ -211,6 +214,9 @@ class Sim_Building(object):
                 hour] = Office.heating_sys_electricity + Office.dhw_sys_electricity + Office.cooling_sys_electricity  # in Wh
             self.heating_demand[hour] = Office.heating_demand  # this is the actual heat emitted, unit?
             self.cooling_demand[hour] = Office.cooling_demand
+            self.dhw_electricity_demand[hour] = Office.dhw_sys_electricity
+            self.dhw_fossil_demand[hour] = Office.dhw_sys_fossils
+            self.dhw_demand = dhw_demand
             self.indoor_temperature[hour] = Office.t_air
 
             # self.total_heat_demand[hour] = Office.heating_demand + Office.dhw_demand  ## add again when dhw is solved
@@ -255,8 +261,11 @@ class Sim_Building(object):
         else:
             fossil_cooling_emission_factors = np.repeat(0, 8760)
 
-        # TODO: add dhw demand
-        #     fossil_dhw_emission_factors = dp.fossil_emission_factors(self.dhw_heating_system)
+        if self.dhw_fossil_demand.any() > 0:
+            fossil_dhw_emission_factors = dp.fossil_emission_factors(self.dhw_heating_system)
+        else:
+            fossil_dhw_emission_factors = np.repeat(0,8760)
+
 
 
 
@@ -269,7 +278,9 @@ class Sim_Building(object):
                                 + self.heating_fossil_demand[hour] * fossil_heating_emission_factors[hour]
             self.cooling_emissions[hour] = self.cooling_electricity_demand[hour] * grid_emission_factors[hour] \
                                 + self.cooling_fossil_demand[hour] * fossil_cooling_emission_factors[hour]
-            #TODO: add dhw emissions
+            self.dhw_emisions[hour] = self.dhw_electricity_demand[hour] * grid_emission_factors[hour] \
+                                + self. dhw_fossil_demand[hour] * fossil_dhw_emission_factors[hour]
+
 
 
         self.operational_emissions = self.heating_emissions + self.cooling_emissions + self.dhw_emisions

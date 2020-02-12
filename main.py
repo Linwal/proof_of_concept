@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import simulation_engine as sime
 
 ### Pfade zu weiteren Daten
@@ -33,9 +32,9 @@ Choice: Oil, Natural Gas, Wood, Pellets, GSHP, ASHP, electric
 Thes ystem choice is translated to a similar system available in the RC Simulator
 """
 
-heizsystem = "Oil"
+heizsystem = "ASHP"
 cooling_system = "electric"
-dhw_heizsystem = "GSHP"
+dhw_heizsystem = heizsystem  ## This is currently a limitation of the RC Model. Automatically the same!
 
 
 
@@ -61,7 +60,7 @@ floor = np.array([[506.0],[u_floor],[b_floor]])
 
 Gebaeude_1 = sime.Sim_Building(gebaeudekategorie_sia, regelung, windows, walls, roof, floor, energiebezugsflache,
                          anlagennutzungsgrad_wrg, infiltration_volume_flow, warmespeicherfahigkeit_pro_EBF,
-                         korrekturfaktor_luftungs_eff_f_v, hohe_uber_meer, heizsystem, cooling_system)
+                         korrekturfaktor_luftungs_eff_f_v, hohe_uber_meer, heizsystem, cooling_system, dhw_heizsystem)
 
 Gebaeude_1.run_rc_simulation(weatherfile_path=weatherfile_path,
                              occupancy_path=occupancy_path, cooling_setpoint=cooling_setpoint)
@@ -71,3 +70,4 @@ print(Gebaeude_1.heating_demand.sum()/1000.0/energiebezugsflache)
 Gebaeude_1.run_dynamic_emissions("SIA_380", "c")
 
 print(Gebaeude_1.heating_emissions.sum()/1000.0/energiebezugsflache)
+print(Gebaeude_1.dhw_emisions.sum()/1000.0/energiebezugsflache)
