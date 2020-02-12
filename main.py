@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import definition as de
+import simulation_engine as sime
 
 ### Pfade zu weiteren Daten
 weatherfile_path = r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator\auxiliary\Zurich-Kloten_2013.epw"
@@ -54,7 +54,7 @@ roof = np.array([[506.0], [u_roof]])
 floor = np.array([[506.0],[u_floor],[b_floor]])
 
 
-Gebaeude_1 = de.Sim_Building(gebaeudekategorie_sia, regelung, windows, walls, roof, floor, energiebezugsflache,
+Gebaeude_1 = sime.Sim_Building(gebaeudekategorie_sia, regelung, windows, walls, roof, floor, energiebezugsflache,
                          anlagennutzungsgrad_wrg, infiltration_volume_flow, warmespeicherfahigkeit_pro_EBF,
                          korrekturfaktor_luftungs_eff_f_v, hohe_uber_meer)
 
