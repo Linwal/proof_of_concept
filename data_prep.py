@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import os
-
+import sys
+sys.path.insert(1, r"C:\Users\walkerl\Documents\code\RC_BuildingSimulator\rc_simulator")
+import supply_system
 
 
 def embodied_emissions_heat_generation_kbob_per_kW(system_type):
@@ -91,12 +93,17 @@ def build_yearly_emission_factors(export_assumption="c"):
     emissions_df = emissions_df.set_index('Time')
     emissions_df.resample('Y').mean()
     #swiss
-    hourly_emission_factor = np.repeat(emissions_df.resample('Y').mean()[choice].to_numpy(),8760)/1000.0 #kgCO2eq/kWh
+    hourly_emission_factor = np.repeat(emissions_df.resample('Y').mean()[choice].to_numpy(), 8760)/1000.0 #kgCO2eq/kWh
 
-    #europe
-    hourly_emission_factor = np.repeat(630,8760) / 1000.0  # kgCO2eq/kWh www.co2-monitor.ch/de/information/glossar/
     return hourly_emission_factor
 
+def build_yearly_emission_factors_sia():
+    hourly_emission_factor = np.repeat(139, 8760) / 1000.0  # kgCO2eq/kWh SIA380
+    return hourly_emission_factor
+
+def build_yearly_emission_factors_eu():
+    hourly_emission_factor = np.repeat(630, 8760) / 1000.0  # kgCO2eq/kWh www.co2-monitor.ch/de/information/glossar/
+    return hourly_emission_factor
 
 def build_monthly_emission_factors(export_assumption="c"):
     """
@@ -153,6 +160,20 @@ def build_grid_emission_hourly(export_assumption="c"):
     hourly_emission_factors = emissions_df[choice].to_numpy()/1000.0
     return(hourly_emission_factors)
 
+def fossil_emission_factors(system_type):
+    """
+     for now, wood and pellets are listed in these are also combustion based systems
+     TODO: omit fossils and maybe only include pellets
+    :param system_type:
+    :return:
+    """
+    treibhausgaskoeffizient = {"Oil": 0.319, "Natural Gas": 0.249, "Wood": 0.020, "Pellets": 0.048}
+    #kgCO2/kWh SIA380 2015 Anhang C Tab 5
+    hourly_emission_factor = np.repeat(treibhausgaskoeffizient[system_type], 8760)  # kgCO2eq/kWh SIA380
+    return hourly_emission_factor
+
+
+
 
 def extract_wall_data(filepath, name="Betonwand, Wärmedämmung mit Lattenrost, Verkleidung", area=0,
                                type="GWP[kgCO2eq/m2]", ):
@@ -197,3 +218,17 @@ def extract_decarbonization_factor(grid_decarbonization_path, grid_decarbonizati
 #
 # extract_decarbonization_factor(grid_decarbonization_until, grid_decarbonization_type, from_year, to_year)
 
+
+def translate_system_sia_to_rc(system):
+    """
+    These can be adapted if needed. At the moment all the combustion based systems are chosen to be new oil Boilers.
+    This makes sense for the energy calculations. For the emission calculations the respective emission factors are
+    chosen as "fossil emission factors" making it add up in the end.
+    :param system:
+    :return:
+    """
+    system_dictionary = {'Oil':supply_system.OilBoilerNew, 'Natural Gas':supply_system.OilBoilerNew ,
+                         'Wood':supply_system.OilBoilerMed , 'Pellets':supply_system.OilBoilerNew,
+                         'GSHP':supply_system.HeatPumpWater, 'ASHP':supply_system.HeatPumpAir,
+                         'electric':supply_system.ElectricHeating}
+    return system_dictionary[system]

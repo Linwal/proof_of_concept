@@ -25,8 +25,12 @@ class Sim_Building(object):
                  infiltration_volume_flow,
                  thermal_storage_capacity_per_floor_area,
                  korrekturfaktor_luftungs_eff_f_v,
-                 height_above_sea
+                 height_above_sea,
+                 heating_system,
+                 cooling_system
                  ):
+
+        print(heating_system)
 
         ### Similar to SIA some are unecessary.
         self.gebaeudekategorie_sia = gebaeudekategorie_sia
@@ -41,6 +45,8 @@ class Sim_Building(object):
         self.warmespeicherfahigkeit_pro_ebf = thermal_storage_capacity_per_floor_area
         self.korrekturfaktor_luftungs_eff_f_v = korrekturfaktor_luftungs_eff_f_v
         self.hohe_uber_meer = height_above_sea
+        self.heating_system = heating_system
+        self.cooling_system = cooling_system
 
         ### RC Simulator inputs (derive from other inputs as much as possible)
         ## So far the lighting load is still hard coded because it is not looked at and I don't know the source.
@@ -69,11 +75,10 @@ class Sim_Building(object):
         self.t_set_cooling = None
         self.max_cooling_energy_per_floor_area = -np.inf
         self.max_heating_energy_per_floor_area = np.inf
-        # self.heating_supply_system = supply_system.ElectricHeating  # Figure out a way to make this compatible with SIA definitions
-        # self.cooling_supply_system = supply_system.DirectCooler  # Figure out a way to make this compatible with SIA definitions
-        # self.heating_emission_system = emission_system.FloorHeating  # Figure out a way to make this compatible with SIA definitions
-        # self.cooling_emission_system = emission_system.AirConditioning  # Figure out a way to make this compatible with SIA definitions
-        self.dhw_supply_temperature = 60  # deg C
+        self.dhw_supply_temperature = 60  # deg C fixed and hard coded
+
+        # TODO: Combine these definitions with the definitions of the RC simulator!
+        self.dhw_heating_system = None ## Attention: This is not yet combined with the RC SIMULATOR!!!!!!
 
 
     def run_rc_simulation(self, weatherfile_path, occupancy_path, cooling_setpoint):
@@ -97,6 +102,14 @@ class Sim_Building(object):
         aussenluft_strome = {1: 0.7, 2: 0.7, 3: 0.7, 4: 0.7, 5: 0.7, 6: 1.2, 7: 1.0, 8: 1.0, 9: 0.7, 10: 0.3, 11: 0.7,
                              12: 0.7}  # 380-1 Tab14
 
+        annual_dhw_demand = {1.1: 19.8, 1.2: 13.5, 2.1: 39.5, 2.2: 0., 3.1: 3.6, 3.2: 3.6, 3.3: 0.0, 3.4: 0.0, 4.1: 5.3,
+                             4.2: 0.0,
+                             4.3: 0.0, 4.4: 7.9, 5.1: 2.7, 5.2: 2.7, 5.3: 1.5, 6.1: 108.9, 7.1: 7.3, 7.2: 7.3,
+                             8.1: 67.7,
+                             8.2: 0.0, 8.3: 0.0, 9.1: 2.4, 9.2: 2.4, 9.3: 2.4, 10.1: 0.9, 11.1: 52.9, 11.2: 87.1,
+                             12: None}
+        # in kWh/m2a according to SIA2024 possbily needs to be changed to SIA 385/2
+
 
         self.t_set_heating = standard_raumtemperaturen[int(self.gebaeudekategorie_sia)]
         Loc = Location(epwfile_path=weatherfile_path)
@@ -104,6 +117,8 @@ class Sim_Building(object):
         appliance_gains = elektrizitatsbedarf[int(self.gebaeudekategorie_sia)]/365/24  # W per sqm (constant over the year)
         max_occupancy = self.energy_reference_area / personenflachen[int(self.gebaeudekategorie_sia)]
         self.ach_vent = aussenluft_strome[int(self.gebaeudekategorie_sia)]/self.room_height  # here we switch from SIA m3/hm2 to air change rate /h
+        heating_supply_system = dp.translate_system_sia_to_rc(self.heating_system)
+        cooling_supply_system = dp.translate_system_sia_to_rc(self.cooling_system)
 
         Office = Building(window_area=self.window_area,
                           external_envelope_area=self.external_envelope_area,
@@ -124,8 +139,8 @@ class Sim_Building(object):
                           t_set_cooling=cooling_setpoint,  # maybe this can be added to the simulation object as well
                           max_cooling_energy_per_floor_area=self.max_cooling_energy_per_floor_area,
                           max_heating_energy_per_floor_area=self.max_heating_energy_per_floor_area,
-                          heating_supply_system=supply_system.ElectricHeating,  # define this!
-                          cooling_supply_system=supply_system.DirectCooler,  # define this!
+                          heating_supply_system=heating_supply_system,
+                          cooling_supply_system=cooling_supply_system,
                           heating_emission_system=emission_system.FloorHeating,  # define this!
                           cooling_emission_system=emission_system.AirConditioning,  # define this!
                           dhw_supply_temperature=self.dhw_supply_temperature, )
@@ -146,8 +161,10 @@ class Sim_Building(object):
         self.electricity_demand = np.empty(8760)
         # self.total_heat_demand = np.empty(8760)  ## add again, when dhw is solved
         self.heating_electricity_demand = np.empty(8760)
+        self.heating_fossil_demand = np.empty(8760)
         self.heating_demand = np.empty(8760)
         self.cooling_electricity_demand = np.empty(8760)
+        self.cooling_fossil_demand = np.empty(8760)
         self.cooling_demand = np.empty(8760)
         self.solar_gains = np.empty(8760)
         self.indoor_temperature = np.empty(8760)
@@ -186,7 +203,9 @@ class Sim_Building(object):
 
 
             self.heating_electricity_demand[hour] = Office.heating_sys_electricity  # unit? heating electricity demand
+            self.heating_fossil_demand[hour] = Office.heating_sys_fossils
             self.cooling_electricity_demand[hour] = Office.cooling_sys_electricity  # unit?
+            self.cooling_fossil_demand[hour] = Office.cooling_sys_fossils
             self.solar_gains[hour] = SouthWindow.solar_gains
             self.electricity_demand[
                 hour] = Office.heating_sys_electricity + Office.dhw_sys_electricity + Office.cooling_sys_electricity  # in Wh
@@ -199,6 +218,61 @@ class Sim_Building(object):
 
 
 
+    def run_dynamic_emissions(self, emission_factor_type, grid_export_assumption='c'):
+        """
+
+        :return:
+        """
+
+        if not hasattr(self, 'heating_demand'):
+            print(
+                "Before you can calculate the dynamic emissions, you first have to run the dynamic heating simulation")
+            quit()
+
+
+        ### Too many ifs. TODO: simplify by adding into a single function or table.
+        if emission_factor_type == 'annual':
+            grid_emission_factors = dp.build_yearly_emission_factors(export_assumption=grid_export_assumption)
+        elif emission_factor_type == 'monthly':
+            grid_emission_factors = dp.build_monthly_emission_factors(export_assumption=grid_export_assumption)
+        elif emission_factor_type == 'hourly':
+            grid_emission_factors = dp.build_grid_emission_hourly(export_assumption=grid_export_assumption)
+        elif emission_factor_type == 'SIA_380':
+            grid_emission_factors = dp.build_yearly_emission_factors_sia()
+        elif emission_factor_type == 'EU':
+            grid_emission_factors = dp.build_yearly_emission_factors_eu()
+        else:
+            print("Type of emission factor was not sufficiently specified")
+            exit(1)
+
+        if self.heating_fossil_demand.any()>0:
+            fossil_heating_emission_factors = dp.fossil_emission_factors(self.heating_system)
+        else:
+            fossil_heating_emission_factors = np.repeat(0, 8760)
+
+        if self.cooling_fossil_demand.any()>0: # TODO: Check if cooling fossil demand is given in - or +
+            fossil_cooling_emission_factors = dp.fossil_emission_factors(self.cooling_system)
+        else:
+            fossil_cooling_emission_factors = np.repeat(0, 8760)
+
+        # TODO: add dhw demand
+        #     fossil_dhw_emission_factors = dp.fossil_emission_factors(self.dhw_heating_system)
+
+
+
+        self.heating_emissions = np.empty(8760)
+        self.cooling_emissions = np.empty(8760)
+        self.dhw_emisions = np.empty(8760)
+
+        for hour in range(8760):
+            self.heating_emissions[hour] = self.heating_electricity_demand[hour] * grid_emission_factors[hour] \
+                                + self.heating_fossil_demand[hour] * fossil_heating_emission_factors[hour]
+            self.cooling_emissions[hour] = self.cooling_electricity_demand[hour] * grid_emission_factors[hour] \
+                                + self.cooling_fossil_demand[hour] * fossil_cooling_emission_factors[hour]
+            #TODO: add dhw emissions
+
+
+        self.operational_emissions = self.heating_emissions + self.cooling_emissions + self.dhw_emisions
 
 
 
