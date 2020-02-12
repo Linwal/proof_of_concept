@@ -168,6 +168,7 @@ class Sim_Building(object):
         self.cooling_demand = np.empty(8760)
         self.dhw_electricity_demand = np.empty(8760)
         self.dhw_fossil_demand = np.empty(8760)
+        self.dhw_demand = np.empty(8760)
         self.solar_gains = np.empty(8760)
         self.indoor_temperature = np.empty(8760)
 
@@ -216,7 +217,7 @@ class Sim_Building(object):
             self.cooling_demand[hour] = Office.cooling_demand
             self.dhw_electricity_demand[hour] = Office.dhw_sys_electricity
             self.dhw_fossil_demand[hour] = Office.dhw_sys_fossils
-            self.dhw_demand = dhw_demand
+            self.dhw_demand[hour] = dhw_demand
             self.indoor_temperature[hour] = Office.t_air
 
             # self.total_heat_demand[hour] = Office.heating_demand + Office.dhw_demand  ## add again when dhw is solved
@@ -282,7 +283,6 @@ class Sim_Building(object):
                                 + self. dhw_fossil_demand[hour] * fossil_dhw_emission_factors[hour]
 
 
-
         self.operational_emissions = self.heating_emissions + self.cooling_emissions + self.dhw_emisions
 
 
@@ -304,6 +304,8 @@ class Sim_Building(object):
 
 
 
+""" hier unten ist eine veraltete Version, von der ich einige sniplets noch verwenden werde. Kann demnächst
+gelöscht werden.
 
 
 
@@ -538,7 +540,7 @@ def run_rc_asdfsimulation(external_envelope_area, window_area, room_width, room_
            u_windows, u_walls, thermal_capacitance_per_floor_area, max_required_heating_per_floor_area,\
            max_required_cooling_per_floor_area, indoor_temperature
 
-
+"""
 
 
 

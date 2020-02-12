@@ -65,7 +65,8 @@ Gebaeude_1 = sime.Sim_Building(gebaeudekategorie_sia, regelung, windows, walls, 
 Gebaeude_1.run_rc_simulation(weatherfile_path=weatherfile_path,
                              occupancy_path=occupancy_path, cooling_setpoint=cooling_setpoint)
 
-print(Gebaeude_1.heating_demand.sum()/1000.0/energiebezugsflache)
+print(Gebaeude_1.cooling_demand.sum()/1000.0/energiebezugsflache)
+print(Gebaeude_1.dhw_demand.sum()/1000.0/energiebezugsflache)
 
 Gebaeude_1.run_dynamic_emissions("SIA_380", "c")
 
