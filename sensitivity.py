@@ -45,7 +45,7 @@ if __name__=='__main__':
                   [0.05, 0.25],  # infiltration volume flow
                   [0.5, 7.5]]}   # Heating system ## Abklären, ob dies so gemacht werden kann für diskretisierte Variablen.
     # "Natural Gas":0.249, "Wood":0.020, "Pellets":0.048, "GSHP_CH_mix":0.055, "ASHP_CH_mix":0.076, "GSHP_EU_mix":0.207, "ASHP_EU_mix":0.285
-    param_values = saltelli.sample(problem, 40)
+    param_values = saltelli.sample(problem, 50)
 
 
     ### Run Model
@@ -112,7 +112,7 @@ if __name__=='__main__':
         Gebaeude_1.run_dynamic_emissions("SIA_380", "c")
 
         Y[i] = Gebaeude_1.heating_demand.sum()  #kWh/m2a
-        Y[i] = Gebaeude_1.heating_emissions.sum()
+        # Y[i] = Gebaeude_1.heating_emissions.sum()
 
     print("sobol analysis...")
     Si = sobol.analyze(problem, Y, parallel=True, n_processors=6 )

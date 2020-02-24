@@ -100,6 +100,7 @@ class Sim_Building(object):
 
         aussenluft_strome = {1: 0.7, 2: 0.7, 3: 0.7, 4: 0.7, 5: 0.7, 6: 1.2, 7: 1.0, 8: 1.0, 9: 0.7, 10: 0.3, 11: 0.7,
                              12: 0.7}  # 380-1 Tab14
+        aussenluft_strome = {1:2.1}
 
         annual_dhw_demand = {1.1: 19.8, 1.2: 13.5, 2.1: 39.5, 2.2: 0., 3.1: 3.6, 3.2: 3.6, 3.3: 0.0, 3.4: 0.0, 4.1: 5.3,
                              4.2: 0.0,
@@ -306,6 +307,7 @@ class Sim_Building(object):
 
 """ hier unten ist eine veraltete Version, von der ich einige sniplets noch verwenden werde. Kann demnächst
 gelöscht werden.
+"""
 
 
 
@@ -540,7 +542,6 @@ def run_rc_asdfsimulation(external_envelope_area, window_area, room_width, room_
            u_windows, u_walls, thermal_capacitance_per_floor_area, max_required_heating_per_floor_area,\
            max_required_cooling_per_floor_area, indoor_temperature
 
-"""
 
 
 

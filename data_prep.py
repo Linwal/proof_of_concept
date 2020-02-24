@@ -232,3 +232,15 @@ def translate_system_sia_to_rc(system):
                          'GSHP':supply_system.HeatPumpWater, 'ASHP':supply_system.HeatPumpAir,
                          'electric':supply_system.ElectricHeating}
     return system_dictionary[system]
+
+
+def hourly_to_monthly(hourly_array):
+    hours_per_month = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])*24
+    monthly_values = np.empty(12)
+    start_hour = 0
+
+    for month in range(12):
+        end_hour = start_hour+hours_per_month[month]
+        monthly_values[month] = hourly_array[start_hour:end_hour].sum()
+        start_hour = start_hour + hours_per_month[month]
+    return monthly_values
