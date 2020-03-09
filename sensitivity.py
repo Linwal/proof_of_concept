@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import simulation_engine as se
+import simulation_engine_dynamic as se
 
 from SALib.sample import saltelli
 from SALib.analyze import sobol

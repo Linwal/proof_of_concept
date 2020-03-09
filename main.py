@@ -1,7 +1,7 @@
 # import sys
 import numpy as np
 # np.set_printoptions(threshold=sys.maxsize)
-import simulation_engine as sime
+import simulation_engine_dynamic as sime
 import data_prep as dp
 
 ### Pfade zu weiteren Daten

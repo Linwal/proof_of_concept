@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-import simulation_engine as sime
+import simulation_engine_dynamic as sime
 
 
 # class MyTestCase(unittest.TestCase):
